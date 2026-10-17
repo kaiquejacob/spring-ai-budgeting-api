@@ -4,22 +4,28 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "GROQ_API_KEY", matches = ".+")
 public class ToolCallingIT {
     @Autowired
     OpenAiChatModel openAiChatModel;
+    @Autowired
+    private OpenAiChatOptions groqChatOptions;
 
     @Test
     void should_executeSum_when_prompted() {
         var chatClient = ChatClient.builder(openAiChatModel)
                 .defaultSystem("Você é um matemático")
+                .defaultOptions(groqChatOptions)
                 .defaultTools(new MathTools())
                 .build();
 
