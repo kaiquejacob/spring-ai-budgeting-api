@@ -12,27 +12,24 @@ public class ProcessTransactionAudioUseCase {
 
     private final TranscriptionModel transcriptionModel;
     private final ChatClient chatClient;
-    private final PersistTransactionUseCase persistTransactionUseCase;
-    private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
 
     public ProcessTransactionAudioUseCase(
             TranscriptionModel transcriptionModel,
-            ChatClient chatClient,
-            PersistTransactionUseCase persistTransactionUseCase,
-            ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase
+            ChatClient chatClient
     ) {
         this.transcriptionModel = transcriptionModel;
         this.chatClient = chatClient;
-        this.persistTransactionUseCase = persistTransactionUseCase;
-        this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
     }
 
     public TransactionAiResponse execute(Resource audio) {
         var transcription = transcriptionModel.transcribe(audio);
+        return interpret(transcription);
+    }
 
+    public TransactionAiResponse interpret(String userMessage) {
         var aiResponse = chatClient
                 .prompt()
-                .user(transcription)
+                .user(userMessage)
                 .call()
                 .entity(TransactionAiResponse.class);
 
@@ -53,24 +50,30 @@ public class ProcessTransactionAudioUseCase {
         return switch (response.intent()) {
             case CREATE_TRANSACTION -> validateCreation(response);
             case LIST_TRANSACTIONS -> validateListing(response);
-            case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST -> response;
+            case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST -> normalizeNonActionable(response);
         };
     }
 
-    private TransactionAiResponse validateCreation(TransactionAiResponse response) {
-        var description = response.description();
-        var amount = response.amountInCents();
-        var category = response.category();
+    private TransactionAiResponse normalizeNonActionable(TransactionAiResponse response) {
+        return new TransactionAiResponse(
+                response.intent(),
+                null,
+                null,
+                null,
+                response.messageToUser()
+        );
+    }
 
-        if (description == null || description.isBlank()) {
+    private TransactionAiResponse validateCreation(TransactionAiResponse response) {
+        if (response.description() == null || response.description().isBlank()) {
             return clarification("Informe uma descrição para a transação.");
         }
 
-        if (amount == null || amount <= 0) {
+        if (response.amountInCents() == null || response.amountInCents() <= 0) {
             return clarification("Informe um valor maior que zero.");
         }
 
-        if (category == null) {
+        if (response.category() == null) {
             return clarification("Informe uma categoria válida: GROCERIES, PHARMA ou AUTO.");
         }
 
