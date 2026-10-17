@@ -1,8 +1,7 @@
 package dio.budgeting.infrastructure.ai;
 
-import dio.budgeting.application.ListTransactionsByCategoryUseCase;
-import dio.budgeting.application.PersistTransactionUseCase;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,15 +17,12 @@ public class FinancialChatClientConfiguration {
     public ChatClient financialChatClient(
             ChatClient.Builder chatClientBuilder,
             @Value("classpath:prompts/system-message.st") Resource systemPrompt,
-            PersistTransactionUseCase persistTransactionUseCase,
-            ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
-            org.springframework.ai.openai.OpenAiChatOptions groqChatOptions
+            OpenAiChatOptions groqChatOptions
     ) throws IOException {
 
         return chatClientBuilder
                 .defaultSystem(systemPrompt.getContentAsString(Charset.defaultCharset()))
                 .defaultOptions(groqChatOptions)
-                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase)
                 .build();
     }
 }

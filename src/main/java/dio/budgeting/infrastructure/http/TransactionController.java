@@ -3,8 +3,10 @@ package dio.budgeting.infrastructure.http;
 import dio.budgeting.application.ListTransactionsByCategoryUseCase;
 import dio.budgeting.application.PersistTransactionUseCase;
 import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.input.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
+import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -48,8 +50,23 @@ public class TransactionController {
     }
 
     @PostMapping(value = "/ai", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public String processAudio(@RequestParam("file") MultipartFile file) {
-        return processTransactionAudioUseCase.execute(file.getResource());
+    public TransactionAiHttpResponse processAudio(@RequestParam("file") MultipartFile file) {
+        var aiResponse = processTransactionAudioUseCase.execute(file.getResource());
+
+        return switch (aiResponse.intent()) {
+            case CREATE_TRANSACTION -> TransactionAiHttpResponse.created(
+                    persistTransactionUseCase.execute(new PersistTransactionInput(
+                            aiResponse.description(),
+                            aiResponse.amountInCents(),
+                            aiResponse.category()
+                    ))
+            );
+            case LIST_TRANSACTIONS -> TransactionAiHttpResponse.listed(
+                    listTransactionsByCategoryUseCase.execute(aiResponse.category())
+            );
+            case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
+                    TransactionAiHttpResponse.from(aiResponse);
+        };
     }
 
 }
