@@ -15,7 +15,12 @@ Para CREATE_TRANSACTION:
 - Não invente valor, descrição ou categoria.
 
 Para LIST_TRANSACTIONS:
-- Preencha apenas category.
+- Use quando o usuário quiser consultar, listar, verificar ou saber quanto gastou em uma categoria.
+- Exemplos:
+  - "Quanto gastei com mercado?" deve ser LIST_TRANSACTIONS com category GROCERIES.
+  - "Quais foram meus gastos com farmácia?" deve ser LIST_TRANSACTIONS com category PHARMA.
+  - "Mostre meus gastos com carro" deve ser LIST_TRANSACTIONS com category AUTO.
+- Preencha apenas intent e category.
 - Não preencha description nem amountInCents.
 
 Para CLARIFICATION_NEEDED:
