@@ -12,7 +12,11 @@ public record TransactionAiHttpResponse(
         UUID confirmationToken,
         TransactionResponse proposedTransaction,
         TransactionResponse createdTransaction,
-        List<TransactionResponse> transactions
+        List<TransactionResponse> transactions,
+        String category,
+        String period,
+        Double totalAmount,
+        List<TransactionResponse> recentTransactions
 ) {
 
     public static TransactionAiHttpResponse pending(
@@ -30,6 +34,10 @@ public record TransactionAiHttpResponse(
                         response.amountInCents() / 100.0
                 ),
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -41,6 +49,10 @@ public record TransactionAiHttpResponse(
                 null,
                 null,
                 TransactionResponse.from(output),
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -52,7 +64,11 @@ public record TransactionAiHttpResponse(
                 null,
                 null,
                 null,
-                outputs.stream().map(TransactionResponse::from).toList()
+                outputs.stream().map(TransactionResponse::from).toList(),
+                null,
+                null,
+                null,
+                null
         );
     }
 
@@ -63,7 +79,48 @@ public record TransactionAiHttpResponse(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
+
+    public static TransactionAiHttpResponse summarized(
+            dio.budgeting.domain.Category category,
+            dio.budgeting.application.ai.TransactionAiResponse.AiPeriod period,
+            long totalInCents
+    ) {
+        return new TransactionAiHttpResponse(
+                "SUM_TRANSACTIONS_BY_CATEGORY",
+                "Total calculado com sucesso.",
+                null,
+                null,
+                null,
+                null,
+                category.name(),
+                period.name(),
+                totalInCents / 100.0,
+                null
+        );
+    }
+
+    public static TransactionAiHttpResponse recent(
+            List<TransactionOutput> outputs
+    ) {
+        return new TransactionAiHttpResponse(
+                "LIST_RECENT_TRANSACTIONS",
+                "Últimas transações encontradas.",
+                null,
+                null,
+                null,
+                outputs.stream().map(TransactionResponse::from).toList(),
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
 }

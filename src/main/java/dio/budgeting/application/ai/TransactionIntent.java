@@ -3,6 +3,8 @@ package dio.budgeting.application.ai;
 public enum TransactionIntent {
     CREATE_TRANSACTION,
     LIST_TRANSACTIONS,
+    SUM_TRANSACTIONS_BY_CATEGORY,
+    LIST_RECENT_TRANSACTIONS,
     CLARIFICATION_NEEDED,
     UNSUPPORTED_REQUEST
 }

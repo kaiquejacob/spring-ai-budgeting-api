@@ -15,6 +15,7 @@ class TransactionAiValidationTest {
                 "Mercado",
                 8000L,
                 null,
+                null,
                 null
         );
 
@@ -28,9 +29,11 @@ class TransactionAiValidationTest {
                 "Mercado",
                 8000L,
                 null,
+                null,
                 null
         );
 
+        assertThat(response.intent()).isEqualTo(TransactionIntent.CREATE_TRANSACTION);
         assertThat(response.amountInCents()).isEqualTo(8000L);
     }
 
@@ -38,6 +41,7 @@ class TransactionAiValidationTest {
     void should_not_fill_amount_for_listing() {
         var response = new TransactionAiResponse(
                 TransactionIntent.LIST_TRANSACTIONS,
+                null,
                 null,
                 null,
                 null,

@@ -7,6 +7,12 @@ public record TransactionAiResponse(
         String description,
         Long amountInCents,
         Category category,
+        AiPeriod period,
         String messageToUser
 ) {
+
+    public enum AiPeriod {
+        CURRENT_MONTH,
+        ALL_TIME
+    }
 }

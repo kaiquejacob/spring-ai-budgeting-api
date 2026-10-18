@@ -1,9 +1,6 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.ListTransactionsByCategoryUseCase;
-import dio.budgeting.application.PendingTransactionService;
-import dio.budgeting.application.PersistTransactionUseCase;
-import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.*;
 import dio.budgeting.application.input.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
@@ -26,16 +23,20 @@ public class TransactionController {
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private final ProcessTransactionAudioUseCase processTransactionAudioUseCase;
     private final PendingTransactionService pendingTransactionService;
+    private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
+    private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
-            ProcessTransactionAudioUseCase processTransactionAudioUseCase, PendingTransactionService pendingTransactionService
+            ProcessTransactionAudioUseCase processTransactionAudioUseCase, PendingTransactionService pendingTransactionService, SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase, ListRecentTransactionsUseCase listRecentTransactionsUseCase
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
         this.processTransactionAudioUseCase = processTransactionAudioUseCase;
         this.pendingTransactionService = pendingTransactionService;
+        this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
+        this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
     }
 
     @PostMapping
@@ -65,6 +66,21 @@ public class TransactionController {
             }
             case LIST_TRANSACTIONS -> TransactionAiHttpResponse.listed(
                     listTransactionsByCategoryUseCase.execute(aiResponse.category())
+            );
+            case SUM_TRANSACTIONS_BY_CATEGORY -> {
+                var totalInCents = sumTransactionsByCategoryUseCase.execute(
+                        aiResponse.category(),
+                        aiResponse.period()
+                );
+
+                yield TransactionAiHttpResponse.summarized(
+                        aiResponse.category(),
+                        aiResponse.period(),
+                        totalInCents
+                );
+            }
+            case LIST_RECENT_TRANSACTIONS -> TransactionAiHttpResponse.recent(
+                    listRecentTransactionsUseCase.execute()
             );
             case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
                     TransactionAiHttpResponse.clarification(aiResponse);

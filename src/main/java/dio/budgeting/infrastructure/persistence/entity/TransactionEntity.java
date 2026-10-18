@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -32,13 +33,16 @@ public class TransactionEntity {
     @Enumerated(EnumType.STRING)
     private TransactionSource source;
 
+    private Instant createdAt;
+
     public static TransactionEntity from(Transaction transaction) {
         return new TransactionEntity(
                 transaction.getId().uuid(),
                 transaction.getDescription(),
                 transaction.getAmount(),
                 transaction.getCategory(),
-                transaction.getSource()
+                transaction.getSource(),
+                transaction.getCreatedAt()
         );
     }
 
@@ -48,7 +52,8 @@ public class TransactionEntity {
                 this.description,
                 this.amount,
                 this.category,
-                this.source
+                this.source,
+                this.createdAt
         );
     }
 }

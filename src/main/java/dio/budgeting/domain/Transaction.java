@@ -2,6 +2,8 @@ package dio.budgeting.domain;
 
 import lombok.Getter;
 
+import java.time.Instant;
+
 @Getter
 public class Transaction {
 
@@ -10,6 +12,7 @@ public class Transaction {
     private final long amount;
     private final Category category;
     private final TransactionSource source;
+    private final Instant createdAt;
 
     public Transaction(
             String description,
@@ -17,13 +20,7 @@ public class Transaction {
             Category category,
             TransactionSource source
     ) {
-        validate(description, amount, category);
-
-        this.id = new TransactionId();
-        this.description = description;
-        this.amount = amount;
-        this.category = category;
-        this.source = source;
+        this(new TransactionId(), description, amount, category, source, Instant.now());
     }
 
     public Transaction(
@@ -31,7 +28,8 @@ public class Transaction {
             String description,
             long amount,
             Category category,
-            TransactionSource source
+            TransactionSource source,
+            Instant createdAt
     ) {
         validate(description, amount, category);
 
@@ -40,6 +38,7 @@ public class Transaction {
         this.amount = amount;
         this.category = category;
         this.source = source;
+        this.createdAt = createdAt;
     }
 
     private void validate(String description, long amount, Category category) {
