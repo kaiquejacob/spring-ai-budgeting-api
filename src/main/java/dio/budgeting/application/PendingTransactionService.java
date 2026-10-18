@@ -40,11 +40,11 @@ public class PendingTransactionService {
         var pending = pendingTransactions.remove(token);
 
         if (pending == null) {
-            throw new IllegalArgumentException("Proposta inválida ou já confirmada");
+            throw new PendingTransactionException("Proposta inválida ou já confirmada");
         }
 
         if (Instant.now().isAfter(pending.expiresAt())) {
-            throw new IllegalArgumentException("Proposta expirada");
+            throw new PendingTransactionException("Proposta expirada");
         }
 
         return pending.proposal();

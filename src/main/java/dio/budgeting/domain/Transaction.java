@@ -44,19 +44,19 @@ public class Transaction {
 
     private void validate(String description, long amount, Category category) {
         if (description == null || description.isBlank()) {
-            throw new IllegalArgumentException("Descrição é obrigatória");
+            throw new InvalidTransactionException("Descrição é obrigatória");
         }
 
         if (description.length() > 255) {
-            throw new IllegalArgumentException("Descrição deve ter no máximo 255 caracteres");
+            throw new InvalidTransactionException("Descrição deve ter no máximo 255 caracteres");
         }
 
         if (amount <= 0) {
-            throw new IllegalArgumentException("Valor deve ser maior que zero");
+            throw new InvalidTransactionException("Valor deve ser maior que zero");
         }
 
         if (category == null) {
-            throw new IllegalArgumentException("Categoria é obrigatória");
+            throw new InvalidTransactionException("Categoria é obrigatória");
         }
     }
 }
