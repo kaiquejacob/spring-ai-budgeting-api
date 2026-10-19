@@ -9,6 +9,7 @@ import java.util.UUID;
 public record TransactionAiHttpResponse(
         String intent,
         String message,
+        UUID sessionId,
         UUID confirmationToken,
         TransactionResponse proposedTransaction,
         TransactionResponse createdTransaction,
@@ -21,11 +22,13 @@ public record TransactionAiHttpResponse(
 
     public static TransactionAiHttpResponse pending(
             UUID token,
-            TransactionAiResponse response
+            TransactionAiResponse response,
+            UUID sessionId
     ) {
         return new TransactionAiHttpResponse(
                 response.intent().name(),
                 "Confirme a transação para registrá-la.",
+                sessionId,
                 token,
                 new TransactionResponse(
                         null,
@@ -42,10 +45,14 @@ public record TransactionAiHttpResponse(
         );
     }
 
-    public static TransactionAiHttpResponse created(TransactionOutput output) {
+    public static TransactionAiHttpResponse created(
+            TransactionOutput output,
+            UUID sessionId
+    ) {
         return new TransactionAiHttpResponse(
                 "CREATE_TRANSACTION",
                 "Transação registrada com sucesso.",
+                sessionId,
                 null,
                 null,
                 TransactionResponse.from(output),
@@ -57,10 +64,14 @@ public record TransactionAiHttpResponse(
         );
     }
 
-    public static TransactionAiHttpResponse listed(List<TransactionOutput> outputs) {
+    public static TransactionAiHttpResponse listed(
+            List<TransactionOutput> outputs,
+            UUID sessionId
+    ) {
         return new TransactionAiHttpResponse(
                 "LIST_TRANSACTIONS",
                 "Transações encontradas.",
+                sessionId,
                 null,
                 null,
                 null,
@@ -72,29 +83,16 @@ public record TransactionAiHttpResponse(
         );
     }
 
-    public static TransactionAiHttpResponse clarification(TransactionAiResponse response) {
-        return new TransactionAiHttpResponse(
-                response.intent().name(),
-                response.messageToUser(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
-    }
-
     public static TransactionAiHttpResponse summarized(
             dio.budgeting.domain.Category category,
-            dio.budgeting.application.ai.TransactionAiResponse.AiPeriod period,
-            long totalInCents
+            TransactionAiResponse.AiPeriod period,
+            long totalInCents,
+            UUID sessionId
     ) {
         return new TransactionAiHttpResponse(
                 "SUM_TRANSACTIONS_BY_CATEGORY",
                 "Total calculado com sucesso.",
+                sessionId,
                 null,
                 null,
                 null,
@@ -107,20 +105,40 @@ public record TransactionAiHttpResponse(
     }
 
     public static TransactionAiHttpResponse recent(
-            List<TransactionOutput> outputs
+            List<TransactionOutput> outputs,
+            UUID sessionId
     ) {
         return new TransactionAiHttpResponse(
                 "LIST_RECENT_TRANSACTIONS",
                 "Últimas transações encontradas.",
+                sessionId,
                 null,
                 null,
                 null,
-                outputs.stream().map(TransactionResponse::from).toList(),
+                null,
+                null,
+                null,
+                null,
+                outputs.stream().map(TransactionResponse::from).toList()
+        );
+    }
+
+    public static TransactionAiHttpResponse clarification(
+            TransactionAiResponse response,
+            UUID sessionId
+    ) {
+        return new TransactionAiHttpResponse(
+                response.intent().name(),
+                response.messageToUser(),
+                sessionId,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
                 null
         );
     }
-
 }

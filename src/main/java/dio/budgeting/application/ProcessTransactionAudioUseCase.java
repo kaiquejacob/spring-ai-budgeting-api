@@ -73,6 +73,7 @@ public class ProcessTransactionAudioUseCase {
             case LIST_TRANSACTIONS -> validateListing(response);
             case SUM_TRANSACTIONS_BY_CATEGORY -> validateSummary(response);
             case LIST_RECENT_TRANSACTIONS -> normalizeRecentTransactions(response);
+            case CONFIRM_PENDING -> response;
             case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
                     normalizeNonActionable(response);
         };

@@ -1,6 +1,8 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.*;
+import dio.budgeting.application.ai.TransactionAiResponse;
+import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.input.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
@@ -9,6 +11,7 @@ import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,11 +28,12 @@ public class TransactionController {
     private final PendingTransactionService pendingTransactionService;
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
+    private final ConversationSessionService conversationSessionService;
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
-            ProcessTransactionAudioUseCase processTransactionAudioUseCase, PendingTransactionService pendingTransactionService, SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase, ListRecentTransactionsUseCase listRecentTransactionsUseCase
+            ProcessTransactionAudioUseCase processTransactionAudioUseCase, PendingTransactionService pendingTransactionService, SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase, ListRecentTransactionsUseCase listRecentTransactionsUseCase, ConversationSessionService conversationSessionService
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
@@ -37,6 +41,7 @@ public class TransactionController {
         this.pendingTransactionService = pendingTransactionService;
         this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
         this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
+        this.conversationSessionService = conversationSessionService;
     }
 
     @PostMapping
@@ -56,19 +61,35 @@ public class TransactionController {
     }
 
     @PostMapping(value = "/ai", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public TransactionAiHttpResponse processAudio(@RequestParam("file") MultipartFile file) {
+    public TransactionAiHttpResponse processAudio(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "sessionId", required = false) UUID sessionId
+    ) {
+        var session = conversationSessionService.getOrCreate(sessionId);
+
         var aiResponse = processTransactionAudioUseCase.execute(file.getResource());
 
         return switch (aiResponse.intent()) {
             case CREATE_TRANSACTION -> {
                 var token = pendingTransactionService.save(aiResponse);
-                yield TransactionAiHttpResponse.pending(token, aiResponse);
+
+                session.setPendingProposal(aiResponse);
+
+                yield TransactionAiHttpResponse.pending(token, aiResponse, session.id());
             }
-            case LIST_TRANSACTIONS -> TransactionAiHttpResponse.listed(
-                    listTransactionsByCategoryUseCase.execute(aiResponse.category())
-            );
+            case CONFIRM_PENDING -> confirmPendingProposal(session);
+            case LIST_TRANSACTIONS -> {
+                session.setLastCategory(aiResponse.category());
+                yield TransactionAiHttpResponse.listed(
+                        listTransactionsByCategoryUseCase.execute(aiResponse.category()),
+                        session.id()
+                );
+            }
             case SUM_TRANSACTIONS_BY_CATEGORY -> {
-                var totalInCents = sumTransactionsByCategoryUseCase.execute(
+                session.setLastCategory(aiResponse.category());
+                session.setLastPeriod(aiResponse.period());
+
+                var total = sumTransactionsByCategoryUseCase.execute(
                         aiResponse.category(),
                         aiResponse.period()
                 );
@@ -76,20 +97,35 @@ public class TransactionController {
                 yield TransactionAiHttpResponse.summarized(
                         aiResponse.category(),
                         aiResponse.period(),
-                        totalInCents
+                        total,
+                        session.id()
                 );
             }
             case LIST_RECENT_TRANSACTIONS -> TransactionAiHttpResponse.recent(
-                    listRecentTransactionsUseCase.execute()
+                    listRecentTransactionsUseCase.execute(),
+                    session.id()
             );
             case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
-                    TransactionAiHttpResponse.clarification(aiResponse);
+                    TransactionAiHttpResponse.clarification(aiResponse, session.id());
         };
     }
 
-    @PostMapping("/ai/{token}/confirm")
-    public TransactionAiHttpResponse confirmTransaction(@PathVariable UUID token) {
-        var proposal = pendingTransactionService.consume(token);
+    private TransactionAiHttpResponse confirmPendingProposal(ConversationSession session) {
+        var proposal = session.pendingProposal();
+
+        if (proposal == null) {
+            return TransactionAiHttpResponse.clarification(
+                    new TransactionAiResponse(
+                            TransactionIntent.CLARIFICATION_NEEDED,
+                            null,
+                            null,
+                            null,
+                            null,
+                            "Não há uma transação pendente para confirmar."
+                    ),
+                    session.id()
+            );
+        }
 
         var output = persistTransactionUseCase.execute(
                 new PersistTransactionInput(
@@ -100,7 +136,34 @@ public class TransactionController {
                 )
         );
 
-        return TransactionAiHttpResponse.created(output);
+        session.clearPendingProposal();
+
+        return TransactionAiHttpResponse.created(output, session.id());
+    }
+
+    @PostMapping("/{token}/confirm")
+    public ResponseEntity<TransactionAiHttpResponse> confirmTransaction(
+            @PathVariable UUID token,
+            @RequestParam(value = "sessionId", required = false) UUID sessionId
+    ) {
+        var proposal = pendingTransactionService.consume(token);
+
+        if (proposal == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        var output = persistTransactionUseCase.execute(
+                new PersistTransactionInput(
+                        proposal.description(),
+                        proposal.amountInCents(),
+                        proposal.category(),
+                        TransactionSource.AI
+                )
+        );
+
+        var response = TransactionAiHttpResponse.created(output, sessionId);
+
+        return ResponseEntity.ok(response);
     }
 
 }
