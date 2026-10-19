@@ -1,108 +1,67 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.PendingTransactionException;
-import dio.budgeting.domain.InvalidTransactionException;
-import dio.budgeting.infrastructure.http.response.ErrorResponse;
-import org.springframework.ai.retry.NonTransientAiException;
+import dio.budgeting.application.ai.AiProcessingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import java.time.Instant;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(InvalidTransactionException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidTransaction(
-            InvalidTransactionException exception
+    @ExceptionHandler(AiProcessingException.class)
+    public ResponseEntity<Map<String, Object>> handleAiProcessingException(
+            AiProcessingException exception
     ) {
-        return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ErrorResponse.of(
-                        422,
-                        "Invalid transaction",
-                        exception.getMessage()
-                ));
+        log.warn("AI processing failed: {}", exception.getMessage());
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                Map.of(
+                        "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "error", "AI_SERVICE_UNAVAILABLE",
+                        "message", "Não foi possível processar sua solicitação agora. Tente novamente em instantes.",
+                        "timestamp", Instant.now().toString()
+                )
+        );
     }
 
-    @ExceptionHandler(PendingTransactionException.class)
-    public ResponseEntity<ErrorResponse> handlePendingTransaction(
-            PendingTransactionException exception
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(
+            IllegalArgumentException exception
     ) {
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(
-                        409,
-                        "Invalid confirmation",
-                        exception.getMessage()
-                ));
-    }
+        log.warn("Invalid request: {}", exception.getMessage());
 
-    @ExceptionHandler(NonTransientAiException.class)
-    public ResponseEntity<ErrorResponse> handleAiException(
-            NonTransientAiException exception
-    ) {
-        log.warn("AI provider error: {}", exception.getMessage());
-
-        var message = exception.getMessage() == null ? "" : exception.getMessage();
-
-        if (message.contains("429")) {
-            return ResponseEntity
-                    .status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(ErrorResponse.of(
-                            429,
-                            "Rate limit exceeded",
-                            "Limite de uso da Groq atingido. Tente novamente mais tarde."
-                    ));
-        }
-
-        if (message.contains("401")) {
-            return ResponseEntity
-                    .status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(ErrorResponse.of(
-                            503,
-                            "AI provider unavailable",
-                            "Não foi possível autenticar no provedor de IA."
-                    ));
-        }
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_GATEWAY)
-                .body(ErrorResponse.of(
-                        502,
-                        "AI provider error",
-                        "O provedor de IA não conseguiu processar a solicitação."
-                ));
-    }
-
-    @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorResponse> handleFileTooLarge(
-            MaxUploadSizeExceededException exception
-    ) {
-        return ResponseEntity
-                .status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(ErrorResponse.of(
-                        413,
-                        "File too large",
-                        "O arquivo de áudio excede o tamanho permitido."
-                ));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                Map.of(
+                        "status", HttpStatus.BAD_REQUEST.value(),
+                        "error", "INVALID_REQUEST",
+                        "message", exception.getMessage(),
+                        "timestamp", Instant.now().toString()
+                )
+        );
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
+    public ResponseEntity<Map<String, Object>> handleUnexpectedError(
+            Exception exception
+    ) {
         log.error("Unexpected error", exception);
 
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of(
-                        500,
-                        "Internal server error",
-                        "Ocorreu um erro inesperado."
-                ));
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                Map.of(
+                        "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                        "error", "INTERNAL_ERROR",
+                        "message", "Ocorreu um erro inesperado.",
+                        "timestamp", Instant.now().toString()
+                )
+        );
     }
 }

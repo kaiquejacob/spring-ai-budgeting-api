@@ -10,6 +10,20 @@ Regras:
 - Use CLARIFICATION_NEEDED quando faltar informação essencial.
 - Use UNSUPPORTED_REQUEST quando o pedido não for criar ou consultar transações.
 
+Regras para follow-up:
+- Se o usuário disser algo como "e na farmácia?", "e no mercado?" ou "e com transporte?",
+  retorne SUM_TRANSACTIONS_BY_CATEGORY.
+- Preencha apenas a nova categoria mencionada.
+- Deixe period nulo se o usuário não mencionar um novo período.
+
+- Se o usuário disser algo como "e no mês passado?", "e essa semana?" ou "e hoje?",
+  retorne SUM_TRANSACTIONS_BY_CATEGORY.
+- Preencha apenas o novo período mencionado.
+- Deixe category nula se o usuário não mencionar uma nova categoria.
+
+- Se faltar categoria ou período, não invente valores.
+- O sistema preencherá os valores ausentes usando o contexto da sessão.
+
 Para CREATE_TRANSACTION:
 - Preencha description com uma descrição curta.
 - Preencha amountInCents com o valor em centavos. Exemplo: R$ 80,00 deve ser 8000.

@@ -1,6 +1,7 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.*;
+import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.input.PersistTransactionInput;
@@ -14,6 +15,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import dio.budgeting.application.ai.AiProcessingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +33,8 @@ public class TransactionController {
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
+    private static final Logger log =
+            LoggerFactory.getLogger(TransactionController.class);
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
@@ -67,7 +73,8 @@ public class TransactionController {
     ) {
         var session = conversationSessionService.getOrCreate(sessionId);
 
-        var aiResponse = processTransactionAudioUseCase.execute(file.getResource());
+        var rawAiResponse = processAudioWithRetry(file.getResource());
+        var aiResponse = applySessionContext(rawAiResponse, session);
 
         return switch (aiResponse.intent()) {
             case CREATE_TRANSACTION -> {
@@ -164,6 +171,127 @@ public class TransactionController {
         var response = TransactionAiHttpResponse.created(output, sessionId);
 
         return ResponseEntity.ok(response);
+    }
+
+    private TransactionAiResponse applySessionContext(
+            TransactionAiResponse aiResponse,
+            ConversationSession session
+    ) {
+        if (aiResponse.intent() != TransactionIntent.SUM_TRANSACTIONS_BY_CATEGORY
+                && aiResponse.intent() != TransactionIntent.LIST_TRANSACTIONS) {
+            return aiResponse;
+        }
+
+        var category = aiResponse.category() != null
+                ? aiResponse.category()
+                : session.lastCategory();
+
+        var period = aiResponse.period() != null
+                ? aiResponse.period()
+                : session.lastPeriod();
+
+        return new TransactionAiResponse(
+                aiResponse.intent(),
+                aiResponse.description(),
+                aiResponse.amountInCents(),
+                category,
+                period,
+                aiResponse.messageToUser()
+        );
+    }
+
+    private TransactionAiHttpResponse handleSummary(
+            TransactionAiResponse aiResponse,
+            ConversationSession session
+    ) {
+        var category = aiResponse.category();
+        var period = aiResponse.period();
+
+        if (category == null || period == null) {
+            var clarification = new TransactionAiResponse(
+                    TransactionIntent.CLARIFICATION_NEEDED,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Informe a categoria e o período para calcular o total."
+            );
+
+            return TransactionAiHttpResponse.clarification(
+                    clarification,
+                    session.id()
+            );
+        }
+
+        session.setLastCategory(category);
+        session.setLastPeriod(period);
+
+        var total = sumTransactionsByCategoryUseCase.execute(category, period);
+
+        return TransactionAiHttpResponse.summarized(
+                category,
+                period,
+                total,
+                session.id()
+        );
+    }
+
+    private TransactionAiHttpResponse handleListByCategory(
+            TransactionAiResponse aiResponse,
+            ConversationSession session
+    ) {
+        var category = aiResponse.category();
+
+        if (category == null) {
+            var clarification = new TransactionAiResponse(
+                    TransactionIntent.CLARIFICATION_NEEDED,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Informe a categoria para listar as transações."
+            );
+
+            return TransactionAiHttpResponse.clarification(
+                    clarification,
+                    session.id()
+            );
+        }
+
+        session.setLastCategory(category);
+
+        var transactions = listTransactionsByCategoryUseCase.execute(category);
+
+        return TransactionAiHttpResponse.listed(
+                transactions,
+                session.id()
+        );
+    }
+
+    private TransactionAiResponse processAudioWithRetry(
+            org.springframework.core.io.Resource audio
+    ) {
+        try {
+            return processTransactionAudioUseCase.execute(audio);
+        } catch (org.springframework.web.client.ResourceAccessException exception) {
+            log.warn("Transient AI call failure. Retrying once.", exception);
+
+            try {
+                return processTransactionAudioUseCase.execute(audio);
+            } catch (org.springframework.web.client.ResourceAccessException retryException) {
+                throw new AiProcessingException(
+                        "AI provider is unavailable after retry.",
+                        retryException
+                );
+            }
+        } catch (AiProcessingException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new AiProcessingException(
+                    "Failed to process transaction audio.",
+                    exception
+            );
+        }
     }
 
 }

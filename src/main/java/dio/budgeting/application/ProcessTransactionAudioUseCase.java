@@ -132,12 +132,12 @@ public class ProcessTransactionAudioUseCase {
 
         if (response.period() == null) {
             return new TransactionAiResponse(
-                    TransactionIntent.SUM_TRANSACTIONS_BY_CATEGORY,
-                    null,
-                    null,
+                    response.intent(),
+                    response.description(),
+                    response.amountInCents(),
                     response.category(),
                     TransactionAiResponse.AiPeriod.ALL_TIME,
-                    null
+                    response.messageToUser()
             );
         }
 
