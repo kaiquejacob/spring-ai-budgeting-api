@@ -41,7 +41,8 @@ Para SUM_TRANSACTIONS_BY_CATEGORY:
 - Perguntas como "Quanto gastei com mercado?" ou "Qual o total gasto com farmácia?" devem ser SUM_TRANSACTIONS_BY_CATEGORY.
 - Preencha intent, category e period.
 - Use CURRENT_MONTH quando o usuário mencionar mês atual, este mês ou período recente.
-- Use ALL_TIME quando não houver período informado.
+- Se o usuário não mencionar um período, deixe period nulo.
+- O sistema preencherá o período usando o contexto da sessão.
 - Não preencha description nem amountInCents.
 
 Para LIST_RECENT_TRANSACTIONS:

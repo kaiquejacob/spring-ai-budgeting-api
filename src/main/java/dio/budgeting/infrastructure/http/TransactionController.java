@@ -10,14 +10,13 @@ import dio.budgeting.domain.TransactionSource;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
 import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import dio.budgeting.application.ai.AiProcessingException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
@@ -85,29 +84,8 @@ public class TransactionController {
                 yield TransactionAiHttpResponse.pending(token, aiResponse, session.id());
             }
             case CONFIRM_PENDING -> confirmPendingProposal(session);
-            case LIST_TRANSACTIONS -> {
-                session.setLastCategory(aiResponse.category());
-                yield TransactionAiHttpResponse.listed(
-                        listTransactionsByCategoryUseCase.execute(aiResponse.category()),
-                        session.id()
-                );
-            }
-            case SUM_TRANSACTIONS_BY_CATEGORY -> {
-                session.setLastCategory(aiResponse.category());
-                session.setLastPeriod(aiResponse.period());
-
-                var total = sumTransactionsByCategoryUseCase.execute(
-                        aiResponse.category(),
-                        aiResponse.period()
-                );
-
-                yield TransactionAiHttpResponse.summarized(
-                        aiResponse.category(),
-                        aiResponse.period(),
-                        total,
-                        session.id()
-                );
-            }
+            case LIST_TRANSACTIONS -> handleListByCategory(aiResponse, session);
+            case SUM_TRANSACTIONS_BY_CATEGORY -> handleSummary(aiResponse, session);
             case LIST_RECENT_TRANSACTIONS -> TransactionAiHttpResponse.recent(
                     listRecentTransactionsUseCase.execute(),
                     session.id()
@@ -167,6 +145,16 @@ public class TransactionController {
                         TransactionSource.AI
                 )
         );
+
+        if (sessionId != null) {
+            var session = conversationSessionService.getOrCreate(sessionId);
+
+            if (session.pendingProposal() != null
+                    && session.pendingProposal().description().equals(proposal.description())
+                    && session.pendingProposal().amountInCents().equals(proposal.amountInCents())) {
+                session.clearPendingProposal();
+            }
+        }
 
         var response = TransactionAiHttpResponse.created(output, sessionId);
 

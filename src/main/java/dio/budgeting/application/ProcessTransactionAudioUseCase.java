@@ -1,5 +1,6 @@
 package dio.budgeting.application;
 
+import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import org.slf4j.Logger;
@@ -40,17 +41,16 @@ public class ProcessTransactionAudioUseCase {
                     .entity(TransactionAiResponse.class);
 
             return validate(aiResponse);
-        } catch (NonTransientAiException exception) {
+        } catch (
+                NonTransientAiException
+                | org.springframework.web.client.ResourceAccessException
+                | AiProcessingException exception
+        ) {
             throw exception;
         } catch (Exception exception) {
             log.warn("Falha ao interpretar resposta da IA", exception);
 
-            return new TransactionAiResponse(
-                    TransactionIntent.CLARIFICATION_NEEDED,
-                    null,
-                    null,
-                    null,
-                    null,
+            return clarification(
                     "Não consegui interpretar a solicitação. Tente novamente com mais detalhes."
             );
         }
@@ -128,17 +128,6 @@ public class ProcessTransactionAudioUseCase {
     private TransactionAiResponse validateSummary(TransactionAiResponse response) {
         if (response.category() == null) {
             return clarification("Informe a categoria que deseja consultar.");
-        }
-
-        if (response.period() == null) {
-            return new TransactionAiResponse(
-                    response.intent(),
-                    response.description(),
-                    response.amountInCents(),
-                    response.category(),
-                    TransactionAiResponse.AiPeriod.ALL_TIME,
-                    response.messageToUser()
-            );
         }
 
         return response;
