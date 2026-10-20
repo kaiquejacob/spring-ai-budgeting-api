@@ -25,4 +25,18 @@ public class FinancialChatClientConfiguration {
                 .defaultOptions(groqChatOptions)
                 .build();
     }
+
+    @Bean
+    public ChatClient financialToolChatClient(
+            ChatClient.Builder chatClientBuilder,
+            @Value("classpath:prompts/chat-system-message.st") Resource chatSystemPrompt,
+            OpenAiChatOptions groqChatOptions
+    ) throws IOException {
+        return chatClientBuilder
+                .defaultSystem(
+                        chatSystemPrompt.getContentAsString(Charset.defaultCharset())
+                )
+                .defaultOptions(groqChatOptions)
+                .build();
+    }
 }

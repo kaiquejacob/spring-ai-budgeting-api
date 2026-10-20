@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ public class ProcessTransactionAudioUseCase {
 
     public ProcessTransactionAudioUseCase(
             TranscriptionModel transcriptionModel,
-            ChatClient chatClient
+            @Qualifier("financialChatClient") ChatClient chatClient
     ) {
         this.transcriptionModel = transcriptionModel;
         this.chatClient = chatClient;

@@ -71,3 +71,12 @@ Não invente dados.
 Retorne apenas o JSON solicitado.
 Não invente uma transação para confirmar.
 Se não houver uma proposta pendente, o sistema decidirá o que fazer.
+
+Regras para o modo de conversa com ferramentas:
+- Use as ferramentas disponíveis para responder perguntas sobre transações.
+- Para totais, use sum-transactions-by-category.
+- Para listar transações de uma categoria, use list-transactions-by-category.
+- Para ver as últimas transações, use list-recent-transactions.
+- Nunca invente valores, transações ou saldos.
+- Se não houver informação suficiente, peça esclarecimento.
+- Não execute operações de escrita, exclusão ou transferência.

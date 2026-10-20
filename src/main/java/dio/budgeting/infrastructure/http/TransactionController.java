@@ -7,12 +7,17 @@ import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.input.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
+import dio.budgeting.infrastructure.http.request.CategorySuggestionRequest;
+import dio.budgeting.infrastructure.http.request.FinancialChatRequest;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
+import dio.budgeting.infrastructure.http.response.CategorySuggestionResponse;
+import dio.budgeting.infrastructure.http.response.FinancialChatResponse;
 import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +41,9 @@ public class TransactionController {
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
+    private final org.springframework.ai.chat.client.ChatClient financialChatClient;
+    private final org.springframework.ai.chat.client.ChatClient financialToolChatClient;
+    private final SuggestCategoryUseCase suggestCategoryUseCase;
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
@@ -44,7 +52,12 @@ public class TransactionController {
             PendingTransactionService pendingTransactionService,
             SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
             ListRecentTransactionsUseCase listRecentTransactionsUseCase,
-            ConversationSessionService conversationSessionService
+            ConversationSessionService conversationSessionService,
+            @Qualifier("financialChatClient")
+            org.springframework.ai.chat.client.ChatClient financialChatClient,
+            @Qualifier("financialToolChatClient")
+            org.springframework.ai.chat.client.ChatClient financialToolChatClient,
+            SuggestCategoryUseCase suggestCategoryUseCase
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
@@ -53,6 +66,9 @@ public class TransactionController {
         this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
         this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
         this.conversationSessionService = conversationSessionService;
+        this.financialChatClient = financialChatClient;
+        this.financialToolChatClient = financialToolChatClient;
+        this.suggestCategoryUseCase = suggestCategoryUseCase;
     }
 
     @PostMapping
@@ -341,5 +357,40 @@ public class TransactionController {
                 .equals(confirmedProposal.description())
                 && pendingProposal.amountInCents()
                 .equals(confirmedProposal.amountInCents());
+    }
+
+    @PostMapping("/ai/chat")
+    public FinancialChatResponse chat(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam(value = "sessionId", required = false) UUID sessionId,
+            @RequestBody FinancialChatRequest request
+    ) {
+        var session = conversationSessionService.getOrCreate(sessionId, userId);
+
+        var tools = new FinancialTools(
+                userId,
+                sumTransactionsByCategoryUseCase,
+                listTransactionsByCategoryUseCase,
+                listRecentTransactionsUseCase
+        );
+
+        var answer = financialToolChatClient
+                .prompt()
+                .user(request.message())
+                .tools(tools)
+                .call()
+                .content();
+
+        return new FinancialChatResponse(answer, session.id());
+    }
+
+    @PostMapping("/suggest-category")
+    public CategorySuggestionResponse suggestCategory(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody CategorySuggestionRequest request
+    ) {
+        var category = suggestCategoryUseCase.execute(request.description());
+
+        return new CategorySuggestionResponse(category);
     }
 }
