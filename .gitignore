@@ -20,6 +20,9 @@ desktop.ini
 *.env
 application-local.properties
 application-dev.properties
+compare-request.json
+gemini-models.json
+receipt.jpg
 
 ### Logs e Temporários ###
 *.log
