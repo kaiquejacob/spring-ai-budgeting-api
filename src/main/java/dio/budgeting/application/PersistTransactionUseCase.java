@@ -21,9 +21,10 @@ public class PersistTransactionUseCase {
         var transaction = transactionRepository.save(
                 new Transaction(
                         input.description(),
-                        input.amount(),
+                        input.amountInCents(),
                         input.category(),
-                        input.source()
+                        input.source(),
+                        input.userId()
                 )
         );
 

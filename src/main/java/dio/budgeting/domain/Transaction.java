@@ -3,6 +3,7 @@ package dio.budgeting.domain;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Getter
 public class Transaction {
@@ -13,14 +14,15 @@ public class Transaction {
     private final Category category;
     private final TransactionSource source;
     private final Instant createdAt;
+    private final UUID userId;
 
     public Transaction(
             String description,
             long amount,
             Category category,
-            TransactionSource source
+            TransactionSource source, UUID userId
     ) {
-        this(new TransactionId(), description, amount, category, source, Instant.now());
+        this(new TransactionId(), description, amount, category, source, Instant.now(), userId);
     }
 
     public Transaction(
@@ -29,8 +31,9 @@ public class Transaction {
             long amount,
             Category category,
             TransactionSource source,
-            Instant createdAt
+            Instant createdAt, UUID userId
     ) {
+        this.userId = userId;
         validate(description, amount, category);
 
         this.id = id;

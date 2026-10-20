@@ -1,5 +1,6 @@
 package dio.budgeting.infrastructure.http;
 
+import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.ai.AiProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,22 @@ public class GlobalExceptionHandler {
                         "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
                         "error", "INTERNAL_ERROR",
                         "message", "Ocorreu um erro inesperado.",
+                        "timestamp", Instant.now().toString()
+                )
+        );
+    }
+
+    @ExceptionHandler(PendingTransactionException.class)
+    public ResponseEntity<Map<String, Object>> handlePendingTransactionException(
+            PendingTransactionException exception
+    ) {
+        log.warn("Pending transaction error: {}", exception.getMessage());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                Map.of(
+                        "status", HttpStatus.NOT_FOUND.value(),
+                        "error", "PENDING_TRANSACTION_NOT_FOUND",
+                        "message", exception.getMessage(),
                         "timestamp", Instant.now().toString()
                 )
         );

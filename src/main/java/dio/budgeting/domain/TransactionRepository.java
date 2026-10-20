@@ -1,30 +1,24 @@
 package dio.budgeting.domain;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 public interface TransactionRepository {
 
     Transaction save(Transaction transaction);
 
-    List<Transaction> findAllByCategory(Category category);
-
-    List<Transaction> findAllByCategoryAndCreatedAtBetween(
-            Category category,
-            Instant start,
-            Instant end
+    List<Transaction> findByUserIdAndCategory(
+            UUID userId,
+            Category category
     );
 
-    List<Transaction> findTop10ByOrderByCreatedAtDesc();
-
-    long count();
-
-    long sumAmountByCategoryAndDateBetween(
+    long sumAmountByUserIdCategoryAndCreatedAtBetween(
+            UUID userId,
             Category category,
-            LocalDate startDate,
-            LocalDate endDate
+            Instant startDate,
+            Instant endDate
     );
 
-
+    List<Transaction> findTop5ByUserIdOrderByCreatedAtDesc(UUID userId);
 }

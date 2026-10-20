@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -25,20 +26,25 @@ import java.util.UUID;
 @RequestMapping("/transactions")
 public class TransactionController {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(TransactionController.class);
+
     private final PersistTransactionUseCase persistTransactionUseCase;
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private final ProcessTransactionAudioUseCase processTransactionAudioUseCase;
-    private final PendingTransactionService pendingTransactionService;
+    private final dio.budgeting.application.PendingTransactionService pendingTransactionService;
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
-    private static final Logger log =
-            LoggerFactory.getLogger(TransactionController.class);
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
-            ProcessTransactionAudioUseCase processTransactionAudioUseCase, PendingTransactionService pendingTransactionService, SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase, ListRecentTransactionsUseCase listRecentTransactionsUseCase, ConversationSessionService conversationSessionService
+            ProcessTransactionAudioUseCase processTransactionAudioUseCase,
+            PendingTransactionService pendingTransactionService,
+            SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
+            ListRecentTransactionsUseCase listRecentTransactionsUseCase,
+            ConversationSessionService conversationSessionService
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
@@ -51,15 +57,24 @@ public class TransactionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TransactionResponse createTransaction(@RequestBody TransactionRequest request) {
-        var transaction = persistTransactionUseCase.execute(request.toInput());
+    public TransactionResponse createTransaction(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody TransactionRequest request
+    ) {
+        var transaction = persistTransactionUseCase.execute(
+                request.toInput(userId)
+        );
+
         return TransactionResponse.from(transaction);
     }
 
     @GetMapping("/{category}")
-    public List<TransactionResponse> readTransactions(@PathVariable Category category) {
+    public List<TransactionResponse> readTransactions(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable Category category
+    ) {
         return listTransactionsByCategoryUseCase
-                .execute(category)
+                .execute(userId, category)
                 .stream()
                 .map(TransactionResponse::from)
                 .toList();
@@ -67,10 +82,11 @@ public class TransactionController {
 
     @PostMapping(value = "/ai", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public TransactionAiHttpResponse processAudio(
+            @RequestHeader("X-User-Id") UUID userId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "sessionId", required = false) UUID sessionId
     ) {
-        var session = conversationSessionService.getOrCreate(sessionId);
+        var session = conversationSessionService.getOrCreate(sessionId, userId);
 
         var rawAiResponse = processAudioWithRetry(file.getResource());
         var aiResponse = applySessionContext(rawAiResponse, session);
@@ -80,22 +96,79 @@ public class TransactionController {
                 var token = pendingTransactionService.save(aiResponse);
 
                 session.setPendingProposal(aiResponse);
+                conversationSessionService.save(session);
 
-                yield TransactionAiHttpResponse.pending(token, aiResponse, session.id());
+                yield TransactionAiHttpResponse.pending(
+                        token,
+                        aiResponse,
+                        session.id()
+                );
             }
             case CONFIRM_PENDING -> confirmPendingProposal(session);
-            case LIST_TRANSACTIONS -> handleListByCategory(aiResponse, session);
-            case SUM_TRANSACTIONS_BY_CATEGORY -> handleSummary(aiResponse, session);
-            case LIST_RECENT_TRANSACTIONS -> TransactionAiHttpResponse.recent(
-                    listRecentTransactionsUseCase.execute(),
-                    session.id()
+            case LIST_TRANSACTIONS -> handleListByCategory(
+                    userId,
+                    aiResponse,
+                    session
             );
+            case SUM_TRANSACTIONS_BY_CATEGORY -> handleSummary(
+                    userId,
+                    aiResponse,
+                    session
+            );
+            case LIST_RECENT_TRANSACTIONS -> {
+                var transactions = listRecentTransactionsUseCase.execute(userId);
+
+                yield TransactionAiHttpResponse.recent(
+                        transactions,
+                        session.id()
+                );
+            }
             case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
-                    TransactionAiHttpResponse.clarification(aiResponse, session.id());
+                    TransactionAiHttpResponse.clarification(
+                            aiResponse,
+                            session.id()
+                    );
         };
     }
 
-    private TransactionAiHttpResponse confirmPendingProposal(ConversationSession session) {
+    @PostMapping("/{token}/confirm")
+    public ResponseEntity<TransactionAiHttpResponse> confirmTransaction(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable UUID token,
+            @RequestParam(value = "sessionId", required = false) UUID sessionId
+    ) {
+        var proposal = pendingTransactionService.consume(token);
+
+        var output = persistTransactionUseCase.execute(
+                new PersistTransactionInput(
+                        userId,
+                        proposal.description(),
+                        proposal.amountInCents(),
+                        proposal.category(),
+                        TransactionSource.AI
+                )
+        );
+
+        if (sessionId != null) {
+            var session = conversationSessionService.getOrCreate(
+                    sessionId,
+                    userId
+            );
+
+            if (isSameProposal(session.pendingProposal(), proposal)) {
+                session.clearPendingProposal();
+                conversationSessionService.save(session);
+            }
+        }
+
+        return ResponseEntity.ok(
+                TransactionAiHttpResponse.created(output, sessionId)
+        );
+    }
+
+    private TransactionAiHttpResponse confirmPendingProposal(
+            ConversationSession session
+    ) {
         var proposal = session.pendingProposal();
 
         if (proposal == null) {
@@ -114,6 +187,7 @@ public class TransactionController {
 
         var output = persistTransactionUseCase.execute(
                 new PersistTransactionInput(
+                        session.userId(),
                         proposal.description(),
                         proposal.amountInCents(),
                         proposal.category(),
@@ -122,43 +196,84 @@ public class TransactionController {
         );
 
         session.clearPendingProposal();
+        conversationSessionService.save(session);
 
         return TransactionAiHttpResponse.created(output, session.id());
     }
 
-    @PostMapping("/{token}/confirm")
-    public ResponseEntity<TransactionAiHttpResponse> confirmTransaction(
-            @PathVariable UUID token,
-            @RequestParam(value = "sessionId", required = false) UUID sessionId
+    private TransactionAiHttpResponse handleListByCategory(
+            UUID userId,
+            TransactionAiResponse aiResponse,
+            ConversationSession session
     ) {
-        var proposal = pendingTransactionService.consume(token);
+        var category = aiResponse.category();
 
-        if (proposal == null) {
-            return ResponseEntity.notFound().build();
+        if (category == null) {
+            return TransactionAiHttpResponse.clarification(
+                    new TransactionAiResponse(
+                            TransactionIntent.CLARIFICATION_NEEDED,
+                            null,
+                            null,
+                            null,
+                            null,
+                            "Informe a categoria para listar as transações."
+                    ),
+                    session.id()
+            );
         }
 
-        var output = persistTransactionUseCase.execute(
-                new PersistTransactionInput(
-                        proposal.description(),
-                        proposal.amountInCents(),
-                        proposal.category(),
-                        TransactionSource.AI
-                )
+        session.setLastCategory(category);
+        conversationSessionService.save(session);
+
+        var transactions = listTransactionsByCategoryUseCase.execute(
+                userId,
+                category
         );
 
-        if (sessionId != null) {
-            var session = conversationSessionService.getOrCreate(sessionId);
+        return TransactionAiHttpResponse.listed(
+                transactions,
+                session.id()
+        );
+    }
 
-            if (session.pendingProposal() != null
-                    && session.pendingProposal().description().equals(proposal.description())
-                    && session.pendingProposal().amountInCents().equals(proposal.amountInCents())) {
-                session.clearPendingProposal();
-            }
+    private TransactionAiHttpResponse handleSummary(
+            UUID userId,
+            TransactionAiResponse aiResponse,
+            ConversationSession session
+    ) {
+        var category = aiResponse.category();
+        var period = aiResponse.period();
+
+        if (category == null || period == null) {
+            return TransactionAiHttpResponse.clarification(
+                    new TransactionAiResponse(
+                            TransactionIntent.CLARIFICATION_NEEDED,
+                            null,
+                            null,
+                            null,
+                            null,
+                            "Informe a categoria e o período para calcular o total."
+                    ),
+                    session.id()
+            );
         }
 
-        var response = TransactionAiHttpResponse.created(output, sessionId);
+        session.setLastCategory(category);
+        session.setLastPeriod(period);
+        conversationSessionService.save(session);
 
-        return ResponseEntity.ok(response);
+        var total = sumTransactionsByCategoryUseCase.execute(
+                userId,
+                category,
+                period
+        );
+
+        return TransactionAiHttpResponse.summarized(
+                category,
+                period,
+                total,
+                session.id()
+        );
     }
 
     private TransactionAiResponse applySessionContext(
@@ -188,85 +303,17 @@ public class TransactionController {
         );
     }
 
-    private TransactionAiHttpResponse handleSummary(
-            TransactionAiResponse aiResponse,
-            ConversationSession session
-    ) {
-        var category = aiResponse.category();
-        var period = aiResponse.period();
-
-        if (category == null || period == null) {
-            var clarification = new TransactionAiResponse(
-                    TransactionIntent.CLARIFICATION_NEEDED,
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Informe a categoria e o período para calcular o total."
-            );
-
-            return TransactionAiHttpResponse.clarification(
-                    clarification,
-                    session.id()
-            );
-        }
-
-        session.setLastCategory(category);
-        session.setLastPeriod(period);
-
-        var total = sumTransactionsByCategoryUseCase.execute(category, period);
-
-        return TransactionAiHttpResponse.summarized(
-                category,
-                period,
-                total,
-                session.id()
-        );
-    }
-
-    private TransactionAiHttpResponse handleListByCategory(
-            TransactionAiResponse aiResponse,
-            ConversationSession session
-    ) {
-        var category = aiResponse.category();
-
-        if (category == null) {
-            var clarification = new TransactionAiResponse(
-                    TransactionIntent.CLARIFICATION_NEEDED,
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Informe a categoria para listar as transações."
-            );
-
-            return TransactionAiHttpResponse.clarification(
-                    clarification,
-                    session.id()
-            );
-        }
-
-        session.setLastCategory(category);
-
-        var transactions = listTransactionsByCategoryUseCase.execute(category);
-
-        return TransactionAiHttpResponse.listed(
-                transactions,
-                session.id()
-        );
-    }
-
     private TransactionAiResponse processAudioWithRetry(
             org.springframework.core.io.Resource audio
     ) {
         try {
             return processTransactionAudioUseCase.execute(audio);
-        } catch (org.springframework.web.client.ResourceAccessException exception) {
+        } catch (ResourceAccessException exception) {
             log.warn("Transient AI call failure. Retrying once.", exception);
 
             try {
                 return processTransactionAudioUseCase.execute(audio);
-            } catch (org.springframework.web.client.ResourceAccessException retryException) {
+            } catch (ResourceAccessException retryException) {
                 throw new AiProcessingException(
                         "AI provider is unavailable after retry.",
                         retryException
@@ -282,4 +329,17 @@ public class TransactionController {
         }
     }
 
+    private boolean isSameProposal(
+            TransactionAiResponse pendingProposal,
+            TransactionAiResponse confirmedProposal
+    ) {
+        if (pendingProposal == null) {
+            return false;
+        }
+
+        return pendingProposal.description()
+                .equals(confirmedProposal.description())
+                && pendingProposal.amountInCents()
+                .equals(confirmedProposal.amountInCents());
+    }
 }

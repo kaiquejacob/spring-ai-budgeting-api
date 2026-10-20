@@ -4,74 +4,66 @@ import dio.budgeting.domain.Category;
 import dio.budgeting.domain.Transaction;
 import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.infrastructure.persistence.entity.TransactionEntity;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class JpaTransactionRepository implements TransactionRepository {
 
     private final TransactionEntityRepository transactionEntityRepository;
 
-    public JpaTransactionRepository(TransactionEntityRepository transactionEntityRepository) {
+    public JpaTransactionRepository(
+            TransactionEntityRepository transactionEntityRepository
+    ) {
         this.transactionEntityRepository = transactionEntityRepository;
     }
 
     @Override
     public Transaction save(Transaction transaction) {
         var entity = TransactionEntity.from(transaction);
-        return transactionEntityRepository.save(entity).toDomain();
+
+        return transactionEntityRepository
+                .save(entity)
+                .toDomain();
     }
 
     @Override
-    public List<Transaction> findAllByCategory(Category category) {
-        return transactionEntityRepository.findAllByCategory(category)
-                .stream()
-                .map(TransactionEntity::toDomain)
-                .toList();
-    }
-
-    @Override
-    public List<Transaction> findAllByCategoryAndCreatedAtBetween(
-            Category category,
-            Instant start,
-            Instant end
+    public List<Transaction> findByUserIdAndCategory(
+            UUID userId,
+            Category category
     ) {
         return transactionEntityRepository
-                .findAllByCategoryAndCreatedAtBetween(category, start, end)
+                .findByUserIdAndCategory(userId, category)
                 .stream()
                 .map(TransactionEntity::toDomain)
                 .toList();
     }
 
     @Override
-    public List<Transaction> findTop10ByOrderByCreatedAtDesc() {
-        return transactionEntityRepository.findTop10ByOrderByCreatedAtDesc()
-                .stream()
-                .map(TransactionEntity::toDomain)
-                .toList();
-    }
-
-    @Override
-    public long count() {
-        return transactionEntityRepository.count();
-    }
-
-    @Override
-    public long sumAmountByCategoryAndDateBetween(
+    public long sumAmountByUserIdCategoryAndCreatedAtBetween(
+            UUID userId,
             Category category,
-            LocalDate startDate,
-            LocalDate endDate
+            Instant startDate,
+            Instant endDate
     ) {
-        return transactionEntityRepository.sumAmountByCategoryAndDateBetween(
-                category,
-                startDate,
-                endDate
-        );
+        return transactionEntityRepository
+                .sumAmountByUserIdCategoryAndCreatedAtBetween(
+                        userId,
+                        category,
+                        startDate,
+                        endDate
+                );
     }
 
+    @Override
+    public List<Transaction> findTop5ByUserIdOrderByCreatedAtDesc(UUID userId) {
+        return transactionEntityRepository
+                .findTop5ByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(TransactionEntity::toDomain)
+                .toList();
+    }
 }

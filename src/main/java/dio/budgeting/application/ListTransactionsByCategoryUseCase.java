@@ -8,6 +8,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ListTransactionsByCategoryUseCase {
@@ -17,8 +18,11 @@ public class ListTransactionsByCategoryUseCase {
         this.transactionRepository = transactionRepository;
     }
 
-    @Tool(name = "list-transactions-by-category", description = "Lista transações financeiras por categoria")
-    public List<TransactionOutput> execute(@ToolParam(description = "Categoria de uma transação") Category category) {
-        return transactionRepository.findAllByCategory(category).stream().map(TransactionOutput::from).toList();
+    public List<TransactionOutput> execute(UUID userId, Category category) {
+        return transactionRepository
+                .findByUserIdAndCategory(userId, category)
+                .stream()
+                .map(TransactionOutput::from)
+                .toList();
     }
 }

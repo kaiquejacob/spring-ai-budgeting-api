@@ -9,18 +9,24 @@ import java.util.UUID;
 public class ConversationSession {
 
     private final UUID id;
+    private final UUID userId;
     private TransactionAiResponse pendingProposal;
     private Category lastCategory;
     private TransactionAiResponse.AiPeriod lastPeriod;
     private Instant expiresAt;
 
-    public ConversationSession(UUID id) {
+    public ConversationSession(UUID id, UUID userId) {
         this.id = id;
+        this.userId = userId;
         this.expiresAt = Instant.now().plusSeconds(900);
     }
 
     public UUID id() {
         return id;
+    }
+
+    public UUID userId() {
+        return userId;
     }
 
     public boolean isExpired() {

@@ -6,6 +6,8 @@ import dio.budgeting.domain.TransactionPeriod;
 import dio.budgeting.domain.TransactionRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class SumTransactionsByCategoryUseCase {
 
@@ -18,12 +20,14 @@ public class SumTransactionsByCategoryUseCase {
     }
 
     public long execute(
+            UUID userId,
             Category category,
             TransactionAiResponse.AiPeriod period
     ) {
         var transactionPeriod = TransactionPeriod.from(period);
 
-        return transactionRepository.sumAmountByCategoryAndDateBetween(
+        return transactionRepository.sumAmountByUserIdCategoryAndCreatedAtBetween(
+                userId,
                 category,
                 transactionPeriod.startDate(),
                 transactionPeriod.endDate()
