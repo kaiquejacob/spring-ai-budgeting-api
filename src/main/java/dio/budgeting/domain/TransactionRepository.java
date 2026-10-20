@@ -1,6 +1,7 @@
 package dio.budgeting.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface TransactionRepository {
@@ -18,4 +19,12 @@ public interface TransactionRepository {
     List<Transaction> findTop10ByOrderByCreatedAtDesc();
 
     long count();
+
+    long sumAmountByCategoryAndDateBetween(
+            Category category,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
+
 }

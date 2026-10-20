@@ -4,9 +4,12 @@ import dio.budgeting.domain.Category;
 import dio.budgeting.domain.Transaction;
 import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.infrastructure.persistence.entity.TransactionEntity;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -57,4 +60,18 @@ public class JpaTransactionRepository implements TransactionRepository {
     public long count() {
         return transactionEntityRepository.count();
     }
+
+    @Override
+    public long sumAmountByCategoryAndDateBetween(
+            Category category,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        return transactionEntityRepository.sumAmountByCategoryAndDateBetween(
+                category,
+                startDate,
+                endDate
+        );
+    }
+
 }

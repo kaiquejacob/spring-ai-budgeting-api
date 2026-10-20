@@ -36,14 +36,15 @@ Para LIST_TRANSACTIONS:
 - Preencha apenas intent e category.
 - Não preencha description, amountInCents nem period.
 
-Para SUM_TRANSACTIONS_BY_CATEGORY:
-- Use apenas quando o usuário pedir um total, soma, valor acumulado ou quanto gastou.
-- Perguntas como "Quanto gastei com mercado?" ou "Qual o total gasto com farmácia?" devem ser SUM_TRANSACTIONS_BY_CATEGORY.
-- Preencha intent, category e period.
-- Use CURRENT_MONTH quando o usuário mencionar mês atual, este mês ou período recente.
+- Use TODAY para "hoje".
+- Use YESTERDAY para "ontem".
+- Use THIS_WEEK para "esta semana" ou "nessa semana".
+- Use LAST_WEEK para "semana passada" ou "na semana passada".
+- Use CURRENT_MONTH para "este mês", "mês atual" ou "neste mês".
+- Use LAST_MONTH para "mês passado" ou "no mês passado".
+- Use ALL_TIME apenas quando o usuário pedir o total histórico, desde o início ou todos os tempos.
 - Se o usuário não mencionar um período, deixe period nulo.
 - O sistema preencherá o período usando o contexto da sessão.
-- Não preencha description nem amountInCents.
 
 Para LIST_RECENT_TRANSACTIONS:
 - Exemplos:
