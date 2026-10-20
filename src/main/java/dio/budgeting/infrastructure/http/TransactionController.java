@@ -44,6 +44,8 @@ public class TransactionController {
     private final org.springframework.ai.chat.client.ChatClient financialChatClient;
     private final org.springframework.ai.chat.client.ChatClient financialToolChatClient;
     private final SuggestCategoryUseCase suggestCategoryUseCase;
+    private final dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase;
+    private final dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService;
 
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
@@ -57,7 +59,9 @@ public class TransactionController {
             org.springframework.ai.chat.client.ChatClient financialChatClient,
             @Qualifier("financialToolChatClient")
             org.springframework.ai.chat.client.ChatClient financialToolChatClient,
-            SuggestCategoryUseCase suggestCategoryUseCase
+            SuggestCategoryUseCase suggestCategoryUseCase,
+            dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase,
+            dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
@@ -69,6 +73,8 @@ public class TransactionController {
         this.financialChatClient = financialChatClient;
         this.financialToolChatClient = financialToolChatClient;
         this.suggestCategoryUseCase = suggestCategoryUseCase;
+        this.processReceiptImageUseCase = processReceiptImageUseCase;
+        this.aiProviderComparisonService = aiProviderComparisonService;
     }
 
     @PostMapping
@@ -392,5 +398,45 @@ public class TransactionController {
         var category = suggestCategoryUseCase.execute(request.description());
 
         return new CategorySuggestionResponse(category);
+    }
+
+    @PostMapping(value = "/ai/receipt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public TransactionAiHttpResponse processReceipt(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "sessionId", required = false) UUID sessionId
+    ) {
+        var session = conversationSessionService.getOrCreate(sessionId, userId);
+
+        var aiResponse = processReceiptImageUseCase.execute(
+                file.getResource(),
+                file.getContentType()
+        );
+
+        if (aiResponse.intent() != TransactionIntent.CREATE_TRANSACTION) {
+            return TransactionAiHttpResponse.clarification(
+                    aiResponse,
+                    session.id()
+            );
+        }
+
+        var token = pendingTransactionService.save(aiResponse);
+
+        session.setPendingProposal(aiResponse);
+        conversationSessionService.save(session);
+
+        return TransactionAiHttpResponse.pending(
+                token,
+                aiResponse,
+                session.id()
+        );
+    }
+
+    @PostMapping("/ai/compare")
+    public dio.budgeting.application.ai.AiProviderComparisonService.ComparisonResult compareProviders(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody FinancialChatRequest request
+    ) {
+        return aiProviderComparisonService.compare(request.message());
     }
 }
