@@ -37,36 +37,69 @@ public class GeminiTextService {
     }
 
     public TransactionAiResponse interpret(String userMessage) {
-        try {
-            var requestBody = Map.of(
-                    "contents", List.of(
-                            Map.of(
-                                    "parts", List.of(
-                                            Map.of("text", userMessage)
-                                    )
-                            )
-                    ),
-                    "generationConfig", Map.of(
-                            "responseMimeType", "application/json"
-                    )
-            );
+        var maxAttempts = 2;
 
-            var response = restClient.post()
-                    .uri("/models/{model}:generateContent",
-                            geminiProperties.model())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                var requestBody = Map.of(
+                        "contents", List.of(
+                                Map.of(
+                                        "parts", List.of(
+                                                Map.of("text", userMessage)
+                                        )
+                                )
+                        ),
+                        "generationConfig", Map.of(
+                                "responseMimeType", "application/json"
+                        )
+                );
 
-            return parseResponse(response);
-        } catch (Exception exception) {
-            log.error("Falha ao interpretar mensagem com Gemini", exception);
+                var response = restClient.post()
+                        .uri("/models/{model}:generateContent",
+                                geminiProperties.model())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
 
-            return clarification(
-                    "Não foi possível processar a solicitação com o Gemini."
-            );
+                return parseResponse(response);
+            } catch (org.springframework.web.client.HttpServerErrorException
+                             .ServiceUnavailable exception) {
+
+                log.warn(
+                        "Gemini indisponível na tentativa {} de {}",
+                        attempt,
+                        maxAttempts,
+                        exception
+                );
+
+                if (attempt == maxAttempts) {
+                    return clarification(
+                            "O Gemini está temporariamente indisponível. Tente novamente em instantes."
+                    );
+                }
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+
+                    return clarification(
+                            "A solicitação foi interrompida."
+                    );
+                }
+            } catch (Exception exception) {
+                log.error("Falha ao interpretar mensagem com Gemini", exception);
+
+                return clarification(
+                        "Não foi possível processar a solicitação com o Gemini."
+                );
+            }
         }
+
+        return clarification(
+                "O Gemini está temporariamente indisponível."
+        );
     }
 
     private TransactionAiResponse parseResponse(String responseBody) {
