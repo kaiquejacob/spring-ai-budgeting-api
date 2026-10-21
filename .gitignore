@@ -1,48 +1,59 @@
-HELP.md
-.gradle
+# =============================================================================
+# Build & Dependency Management (Gradle)
+# =============================================================================
+.gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### Ficheiros do Sistema Operacional ###
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
+# =============================================================================
+# JVM Dumps & Crash Logs
+# =============================================================================
+*.hprof
+hs_err_pid*
+replay_pid*
 
-### Variáveis de Ambiente e Configurações Locais ###
+# =============================================================================
+# Secrets, Environment & Local Configurations
+# =============================================================================
 .env
-*.env
+.env.*
+!.env.example
 application-local.properties
 application-dev.properties
-docs/examples/compare-request.json
-gemini-models.json
-docs/examples/receipt.jpg
+application-*.local.properties
+*.key
+*.pem
+*.p12
 
-### Logs e Temporários ###
+# =============================================================================
+# Docker Overrides
+# =============================================================================
+compose.override.yml
+docker-compose.override.yml
+
+# =============================================================================
+# Logs & Temporary Files
+# =============================================================================
 *.log
 *.tmp
 *.bak
+*.swp
+*~
 
-### STS / Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+# Test & Local Scratch Artifacts
+gemini-models.json
+docs/examples/compare-request.json
+docs/examples/receipt.jpg
+*.m4a.tmp
+*.wav.tmp
 
-### IntelliJ IDEA ###
-.idea
+# =============================================================================
+# IDEs & Editors
+# =============================================================================
+# IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -50,12 +61,45 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### NetBeans ###
+# VS Code
+.vscode/
+
+# STS / Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
-.vscode/
+# AI Assistants & Agents (Local cache)
+.agents/
+.cursor/
+
+# =============================================================================
+# Operating System Files
+# =============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
