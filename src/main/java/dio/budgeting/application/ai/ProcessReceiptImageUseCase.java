@@ -1,6 +1,5 @@
 package dio.budgeting.application.ai;
 
-
 import dio.budgeting.infrastructure.ai.GeminiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
