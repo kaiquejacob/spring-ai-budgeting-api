@@ -27,7 +27,11 @@
             </span>
         </a>
 
-        <button class="button button-secondary new-conversation" disabled>
+        <button
+                id="new-conversation-button"
+                class="button button-secondary new-conversation"
+                type="button"
+        >
             <span aria-hidden="true">+</span>
             Nova conversa
         </button>
@@ -45,12 +49,22 @@
             <p class="section-label">Documentos e áudio</p>
 
             <div class="sidebar-actions">
-                <button class="button button-sidebar" disabled>
+                <button
+                        class="button button-sidebar"
+                        type="button"
+                        title="Disponível em uma próxima etapa"
+                        disabled
+                >
                     Enviar recibo
                     <span class="file-format">Imagem</span>
                 </button>
 
-                <button class="button button-sidebar" disabled>
+                <button
+                        class="button button-sidebar"
+                        type="button"
+                        title="Disponível em uma próxima etapa"
+                        disabled
+                >
                     Enviar áudio
                     <span class="file-format">Arquivo</span>
                 </button>
@@ -59,7 +73,7 @@
 
         <div class="sidebar-footer">
             <span class="demo-indicator" aria-hidden="true"></span>
-            Prévia da interface
+            Demonstração local · sem login
         </div>
     </aside>
 
@@ -70,34 +84,47 @@
                 <h1>Assistente financeiro</h1>
             </div>
 
-            <span class="header-tag">Versão demonstrativa</span>
+            <span class="header-tag">Ambiente local</span>
         </header>
 
         <div class="conversation-scroll">
             <div class="conversation-content">
 
-                <section class="welcome" aria-labelledby="welcome-title">
-                    <span class="eyebrow">Clareza para suas movimentações</span>
+                <section
+                        id="welcome"
+                        class="welcome"
+                        aria-labelledby="welcome-title"
+                >
+                    <span class="eyebrow">
+                        Clareza para suas movimentações
+                    </span>
 
                     <h2 id="welcome-title">
                         Suas finanças, em uma conversa.
                     </h2>
 
                     <p class="welcome-description">
-                        Consulte movimentações ou envie um áudio ou recibo
-                        para preparar um registro financeiro.
+                        Consulte suas movimentações em linguagem natural.
+                        O envio de áudio e recibos será habilitado
+                        em uma próxima etapa.
                     </p>
 
                     <div class="suggestions">
-                        <button class="suggestion" disabled>
-                            <span class="suggestion-title">Consultar gastos</span>
+                        <button class="suggestion" type="button">
+                            <span class="suggestion-title">
+                                Consultar gastos
+                            </span>
+
                             <span class="suggestion-description">
                                 Quanto gastei com mercado este mês?
                             </span>
                         </button>
 
-                        <button class="suggestion" disabled>
-                            <span class="suggestion-title">Ver movimentações</span>
+                        <button class="suggestion" type="button">
+                            <span class="suggestion-title">
+                                Ver movimentações
+                            </span>
+
                             <span class="suggestion-description">
                                 Mostre minhas últimas transações.
                             </span>
@@ -105,103 +132,67 @@
                     </div>
                 </section>
 
-                <section class="demo-conversation"
-                         aria-labelledby="example-title">
-
-                    <div class="example-heading">
-                        <h2 id="example-title">Exemplo de apresentação</h2>
-                        <span>Dados fictícios · nenhum registro será criado</span>
-                    </div>
-
-                    <article class="message message-user">
-                        <span class="message-author">Você</span>
-
-                        <div class="message-bubble">
-                            Enviei um recibo de uma compra de R$ 125,90
-                            no mercado.
-                        </div>
-                    </article>
-
-                    <article class="message message-assistant">
-                        <span class="message-author">Assistente</span>
-
-                        <div class="message-text">
-                            Os dados extraídos seriam apresentados abaixo.
-                            Confira as informações antes de confirmar o registro.
-                        </div>
-
-                        <section class="transaction-card"
-                                 aria-labelledby="proposal-title">
-
-                            <header class="transaction-header">
-                                <span class="section-label">
-                                    Proposta de transação
-                                </span>
-
-                                <span class="status-badge">
-                                    Exemplo
-                                </span>
-                            </header>
-
-                            <h3 id="proposal-title">Compra no mercado</h3>
-                            <p class="transaction-amount">R$ 125,90</p>
-
-                            <dl class="transaction-details">
-                                <div>
-                                    <dt>Categoria</dt>
-                                    <dd>Mercado</dd>
-                                </div>
-
-                                <div>
-                                    <dt>Origem da proposta</dt>
-                                    <dd>Recibo</dd>
-                                </div>
-                            </dl>
-
-                            <div class="transaction-footer">
-                                <p>
-                                    O registro depende da sua confirmação.
-                                </p>
-
-                                <button class="button button-primary" disabled>
-                                    Confirmar registro
-                                </button>
-                            </div>
-                        </section>
-                    </article>
-                </section>
+                <section
+                        id="messages"
+                        class="chat-messages"
+                        role="log"
+                        aria-live="polite"
+                        aria-relevant="additions"
+                        aria-label="Mensagens da conversa"
+                ></section>
 
             </div>
         </div>
 
         <footer class="composer-area">
             <div class="composer-container">
-                <label class="visually-hidden" for="message-input">
-                    Sua mensagem para o assistente
-                </label>
+                <p
+                        id="chat-status"
+                        class="chat-status"
+                        role="status"
+                ></p>
 
-                <div class="composer">
+                <p
+                        id="chat-error"
+                        class="chat-error"
+                        role="alert"
+                        hidden
+                ></p>
+
+                <form id="chat-form" class="composer">
+                    <label class="visually-hidden" for="message-input">
+                        Sua mensagem para o assistente
+                    </label>
+
                     <textarea
                             id="message-input"
                             rows="2"
+                            maxlength="2000"
                             placeholder="Digite sua mensagem..."
                             aria-describedby="composer-help"
-                            disabled
+                            required
                     ></textarea>
 
-                    <button class="button button-primary send-button" disabled>
+                    <button
+                            id="send-button"
+                            class="button button-primary send-button"
+                            type="submit"
+                            disabled
+                    >
                         Enviar
                     </button>
-                </div>
+                </form>
 
                 <p class="composer-help" id="composer-help">
-                    Prévia visual. O envio de mensagens será habilitado
-                    na próxima etapa.
+                    Enter para enviar · Shift + Enter para uma nova linha.
+                    Confira as informações fornecidas pelo assistente.
                 </p>
             </div>
         </footer>
     </main>
 
 </div>
+
+<script type="module" src="./js/app.js"></script>
 </body>
 </html>
