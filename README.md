@@ -58,11 +58,7 @@ Os dados são armazenados em MySQL 8.4. O código está organizado em camadas de
 
 <div align="center">
 
-<img
-src="docs/images/interface.png"
-alt="Interface do Gestão Financeira IA"
-width="1100"
->
+<img src="docs/images/interface.png" alt="Interface do Gestão Financeira IA" width="1100">
 
 </div>
 
