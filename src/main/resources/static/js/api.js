@@ -73,29 +73,42 @@ export async function sendChatMessage(message, sessionId) {
     return data;
 }
 
-export async function sendReceipt(file, sessionId) {
+async function sendFile(path, file, sessionId) {
     const formData = new FormData();
     formData.append("file", file);
 
-    const data = await request(
-        "/transactions/ai/receipt",
-        sessionId,
-        {
-            method: "POST",
-            body: formData
-        }
-    );
+    const data = await request(path, sessionId, {
+        method: "POST",
+        body: formData
+    });
 
     if (
         typeof data.intent !== "string" ||
-        typeof data.sessionId !== "string"
+        typeof data.sessionId !== "string" ||
+        !data.sessionId
     ) {
         throw new Error(
-            "O servidor retornou uma resposta de recibo incompleta."
+            "O servidor retornou uma resposta de processamento incompleta."
         );
     }
 
     return data;
+}
+
+export function sendReceipt(file, sessionId) {
+    return sendFile(
+        "/transactions/ai/receipt",
+        file,
+        sessionId
+    );
+}
+
+export function sendAudio(file, sessionId) {
+    return sendFile(
+        "/transactions/ai",
+        file,
+        sessionId
+    );
 }
 
 export async function confirmTransaction(token, sessionId) {

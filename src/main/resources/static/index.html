@@ -51,7 +51,7 @@
                 <button
                         class="button button-sidebar"
                         type="button"
-                        data-receipt-trigger
+                        data-upload-trigger="receipt"
                 >
                     Enviar recibo
                     <span class="file-format">JPG / PNG</span>
@@ -60,11 +60,10 @@
                 <button
                         class="button button-sidebar"
                         type="button"
-                        title="Disponível em uma próxima etapa"
-                        disabled
+                        data-upload-trigger="audio"
                 >
                     Enviar áudio
-                    <span class="file-format">Em breve</span>
+                    <span class="file-format">MP3 / M4A / WAV</span>
                 </button>
             </div>
         </div>
@@ -101,7 +100,7 @@
                     </h2>
 
                     <p class="welcome-description">
-                        Consulte movimentações ou envie um recibo.
+                        Consulte movimentações ou envie um áudio ou recibo.
                         Confira os dados extraídos antes de confirmar
                         qualquer registro.
                     </p>
@@ -111,6 +110,7 @@
                             <span class="suggestion-title">
                                 Consultar gastos
                             </span>
+
                             <span class="suggestion-description">
                                 Quanto gastei com mercado este mês?
                             </span>
@@ -120,6 +120,7 @@
                             <span class="suggestion-title">
                                 Ver movimentações
                             </span>
+
                             <span class="suggestion-description">
                                 Mostre minhas últimas transações.
                             </span>
@@ -157,13 +158,21 @@
                     <button
                             class="button button-secondary attachment-button"
                             type="button"
-                            data-receipt-trigger
+                            data-upload-trigger="receipt"
                     >
                         Anexar recibo
                     </button>
 
+                    <button
+                            class="button button-secondary attachment-button"
+                            type="button"
+                            data-upload-trigger="audio"
+                    >
+                        Anexar áudio
+                    </button>
+
                     <span class="upload-hint">
-                        JPG ou PNG · até 9 MB
+                        Até 9 MB por arquivo
                     </span>
                 </div>
 
@@ -171,6 +180,13 @@
                         id="receipt-input"
                         type="file"
                         accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                        hidden
+                >
+
+                <input
+                        id="audio-input"
+                        type="file"
+                        accept=".mp3,.m4a,.wav"
                         hidden
                 >
 
@@ -200,7 +216,7 @@
 
                 <p class="composer-help" id="composer-help">
                     Enter para enviar · Shift + Enter para uma nova linha.
-                    Recibos são enviados para análise por IA.
+                    Áudios e recibos são enviados para análise por IA.
                 </p>
             </div>
         </footer>
