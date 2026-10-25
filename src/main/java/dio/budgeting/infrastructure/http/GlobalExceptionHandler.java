@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import dio.budgeting.application.SessionAccessDeniedException;
 
 import java.time.Instant;
 import java.util.Map;
@@ -81,4 +82,21 @@ public class GlobalExceptionHandler {
                 )
         );
     }
+
+    @ExceptionHandler(SessionAccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleSessionAccessDenied(
+            SessionAccessDeniedException exception
+    ) {
+        log.warn("Tentativa de acesso a sessão de outro usuário.");
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                Map.of(
+                        "status", HttpStatus.FORBIDDEN.value(),
+                        "error", "SESSION_ACCESS_DENIED",
+                        "message", exception.getMessage(),
+                        "timestamp", Instant.now().toString()
+                )
+        );
+    }
+
 }

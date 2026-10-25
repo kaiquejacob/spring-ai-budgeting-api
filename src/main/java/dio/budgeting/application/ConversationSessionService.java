@@ -27,13 +27,13 @@ public class ConversationSessionService {
                 ? null
                 : repository.findById(sessionId).orElse(null);
 
-        if (entity == null || isExpired(entity)) {
-            var id = sessionId == null
-                    ? UUID.randomUUID()
-                    : sessionId;
+        if (entity != null) {
+            validateOwner(entity, userId);
+        }
 
+        if (entity == null || isExpired(entity)) {
             entity = new ConversationSessionEntity(
-                    id,
+                    UUID.randomUUID(),
                     userId,
                     Instant.now().plusSeconds(SESSION_DURATION_SECONDS)
             );
@@ -50,7 +50,17 @@ public class ConversationSessionService {
 
     public void save(ConversationSession session) {
         var entity = repository.findById(session.id())
-                .orElseThrow();
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Sessão não encontrada.")
+                );
+
+        validateOwner(entity, session.userId());
+
+        if (isExpired(entity)) {
+            throw new IllegalArgumentException(
+                    "A sessão expirou. Inicie uma nova conversa."
+            );
+        }
 
         entity.setExpiresAt(
                 Instant.now().plusSeconds(SESSION_DURATION_SECONDS)
@@ -84,6 +94,15 @@ public class ConversationSessionService {
         );
 
         repository.save(entity);
+    }
+
+    private void validateOwner(
+            ConversationSessionEntity entity,
+            UUID userId
+    ) {
+        if (!entity.getUserId().equals(userId)) {
+            throw new SessionAccessDeniedException();
+        }
     }
 
     private boolean isExpired(ConversationSessionEntity entity) {
