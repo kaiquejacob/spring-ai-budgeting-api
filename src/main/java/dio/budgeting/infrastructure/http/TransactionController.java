@@ -115,7 +115,7 @@ public class TransactionController {
 
         return switch (aiResponse.intent()) {
             case CREATE_TRANSACTION -> {
-                var token = pendingTransactionService.save(aiResponse);
+                var token = pendingTransactionService.save(userId, aiResponse);
 
                 session.setPendingProposal(aiResponse);
                 conversationSessionService.save(session);
@@ -159,7 +159,11 @@ public class TransactionController {
             @PathVariable UUID token,
             @RequestParam(value = "sessionId", required = false) UUID sessionId
     ) {
-        var proposal = pendingTransactionService.consume(token);
+        var session = sessionId == null
+                ? null
+                : conversationSessionService.getOrCreate(sessionId, userId);
+
+        var proposal = pendingTransactionService.consume(token, userId);
 
         var output = persistTransactionUseCase.execute(
                 new PersistTransactionInput(
@@ -171,20 +175,18 @@ public class TransactionController {
                 )
         );
 
-        if (sessionId != null) {
-            var session = conversationSessionService.getOrCreate(
-                    sessionId,
-                    userId
-            );
+        if (session != null
+                && isSameProposal(session.pendingProposal(), proposal)) {
 
-            if (isSameProposal(session.pendingProposal(), proposal)) {
-                session.clearPendingProposal();
-                conversationSessionService.save(session);
-            }
+            session.clearPendingProposal();
+            conversationSessionService.save(session);
         }
 
         return ResponseEntity.ok(
-                TransactionAiHttpResponse.created(output, sessionId)
+                TransactionAiHttpResponse.created(
+                        output,
+                        session == null ? null : session.id()
+                )
         );
     }
 
@@ -420,7 +422,7 @@ public class TransactionController {
             );
         }
 
-        var token = pendingTransactionService.save(aiResponse);
+        var token = pendingTransactionService.save(userId, aiResponse);
 
         session.setPendingProposal(aiResponse);
         conversationSessionService.save(session);
