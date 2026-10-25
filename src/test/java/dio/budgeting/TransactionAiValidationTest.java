@@ -16,8 +16,8 @@ class TransactionAiValidationTest {
                 8000L,
                 null,
                 null,
-                null
-        );
+                null,
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
 
         assertThat(response.intent()).isNull();
     }
@@ -30,8 +30,8 @@ class TransactionAiValidationTest {
                 8000L,
                 null,
                 null,
-                null
-        );
+                null,
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
 
         assertThat(response.intent()).isEqualTo(TransactionIntent.CREATE_TRANSACTION);
         assertThat(response.amountInCents()).isEqualTo(8000L);
@@ -45,8 +45,8 @@ class TransactionAiValidationTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
 
         assertThat(response.intent()).isEqualTo(TransactionIntent.LIST_TRANSACTIONS);
         assertThat(response.amountInCents()).isNull();

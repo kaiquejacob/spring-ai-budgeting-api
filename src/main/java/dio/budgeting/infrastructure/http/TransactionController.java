@@ -118,6 +118,7 @@ public class TransactionController {
                 var token = pendingTransactionService.save(userId, aiResponse);
 
                 session.setPendingProposal(aiResponse);
+                session.setPendingConfirmationToken(token);
                 conversationSessionService.save(session);
 
                 yield TransactionAiHttpResponse.pending(
@@ -176,7 +177,7 @@ public class TransactionController {
         );
 
         if (session != null
-                && isSameProposal(session.pendingProposal(), proposal)) {
+                && token.equals(session.pendingConfirmationToken())) {
 
             session.clearPendingProposal();
             conversationSessionService.save(session);
@@ -193,9 +194,9 @@ public class TransactionController {
     private TransactionAiHttpResponse confirmPendingProposal(
             ConversationSession session
     ) {
-        var proposal = session.pendingProposal();
+        var token = session.pendingConfirmationToken();
 
-        if (proposal == null) {
+        if (session.pendingProposal() == null || token == null) {
             return TransactionAiHttpResponse.clarification(
                     new TransactionAiResponse(
                             TransactionIntent.CLARIFICATION_NEEDED,
@@ -203,11 +204,17 @@ public class TransactionController {
                             null,
                             null,
                             null,
-                            "Não há uma transação pendente para confirmar."
+                            null,
+                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."
                     ),
                     session.id()
             );
         }
+
+        var proposal = pendingTransactionService.consume(
+                token,
+                session.userId()
+        );
 
         var output = persistTransactionUseCase.execute(
                 new PersistTransactionInput(
@@ -222,7 +229,10 @@ public class TransactionController {
         session.clearPendingProposal();
         conversationSessionService.save(session);
 
-        return TransactionAiHttpResponse.created(output, session.id());
+        return TransactionAiHttpResponse.created(
+                output,
+                session.id()
+        );
     }
 
     private TransactionAiHttpResponse handleListByCategory(
@@ -240,8 +250,8 @@ public class TransactionController {
                             null,
                             null,
                             null,
-                            "Informe a categoria para listar as transações."
-                    ),
+                            "Informe a categoria para listar as transações.",
+                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."),
                     session.id()
             );
         }
@@ -276,8 +286,8 @@ public class TransactionController {
                             null,
                             null,
                             null,
-                            "Informe a categoria e o período para calcular o total."
-                    ),
+                            "Informe a categoria e o período para calcular o total.",
+                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."),
                     session.id()
             );
         }
@@ -323,8 +333,8 @@ public class TransactionController {
                 aiResponse.amountInCents(),
                 category,
                 period,
-                aiResponse.messageToUser()
-        );
+                aiResponse.messageToUser(),
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
     private TransactionAiResponse processAudioWithRetry(
@@ -425,6 +435,7 @@ public class TransactionController {
         var token = pendingTransactionService.save(userId, aiResponse);
 
         session.setPendingProposal(aiResponse);
+        session.setPendingConfirmationToken(token);
         conversationSessionService.save(session);
 
         return TransactionAiHttpResponse.pending(

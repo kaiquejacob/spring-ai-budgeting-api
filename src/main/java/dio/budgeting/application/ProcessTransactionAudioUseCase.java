@@ -65,8 +65,8 @@ public class ProcessTransactionAudioUseCase {
                     null,
                     null,
                     null,
-                    "Não consegui entender a solicitação. Tente informar a despesa e o valor."
-            );
+                    "Não consegui entender a solicitação. Tente informar a despesa e o valor.",
+                    "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
         }
 
         return switch (response.intent()) {
@@ -87,8 +87,8 @@ public class ProcessTransactionAudioUseCase {
                 null,
                 null,
                 null,
-                response.messageToUser()
-        );
+                response.messageToUser(),
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
     private TransactionAiResponse validateCreation(TransactionAiResponse response) {
@@ -122,8 +122,8 @@ public class ProcessTransactionAudioUseCase {
                 null,
                 null,
                 null,
-                message
-        );
+                message,
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
     private TransactionAiResponse validateSummary(TransactionAiResponse response) {
@@ -141,7 +141,7 @@ public class ProcessTransactionAudioUseCase {
                 null,
                 null,
                 null,
-                response.messageToUser()
-        );
+                response.messageToUser(),
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 }

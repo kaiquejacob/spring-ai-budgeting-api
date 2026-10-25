@@ -220,8 +220,8 @@ public class GeminiTextService {
                 null,
                 null,
                 null,
-                message
-        );
+                message,
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
 }

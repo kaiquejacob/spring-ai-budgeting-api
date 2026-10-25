@@ -82,7 +82,7 @@ class PendingTransactionServiceTest {
                 2590L,
                 Category.GROCERIES,
                 null,
-                ""
-        );
+                "",
+                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 }

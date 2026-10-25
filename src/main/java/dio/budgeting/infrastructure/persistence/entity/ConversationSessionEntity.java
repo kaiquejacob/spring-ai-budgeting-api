@@ -27,6 +27,8 @@ public class ConversationSessionEntity {
 
     private String pendingPeriod;
 
+    private UUID pendingConfirmationToken;
+
     private Category lastCategory;
 
     private String lastPeriod;
@@ -125,5 +127,13 @@ public class ConversationSessionEntity {
 
     public void setUserId(UUID userId) {
         this.userId = userId;
+    }
+
+    public UUID getPendingConfirmationToken() {
+        return pendingConfirmationToken;
+    }
+
+    public void setPendingConfirmationToken(UUID pendingConfirmationToken) {
+        this.pendingConfirmationToken = pendingConfirmationToken;
     }
 }

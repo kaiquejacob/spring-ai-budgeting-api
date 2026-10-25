@@ -72,6 +72,7 @@ public class ConversationSessionService {
             entity.setPendingAmountInCents(null);
             entity.setPendingCategory(null);
             entity.setPendingPeriod(null);
+            entity.setPendingConfirmationToken(null);
         } else {
             var proposal = session.pendingProposal();
 
@@ -83,6 +84,10 @@ public class ConversationSessionService {
                     proposal.period() == null
                             ? null
                             : proposal.period().name()
+            );
+
+            entity.setPendingConfirmationToken(
+                    session.pendingConfirmationToken()
             );
         }
 
@@ -126,8 +131,12 @@ public class ConversationSessionService {
                             : TransactionAiResponse.AiPeriod.valueOf(
                             entity.getPendingPeriod()
                     ),
-                    null
-            ));
+                    null,
+                    "Não há uma proposta válida para confirmar. Gere uma nova proposta."));
+
+            session.setPendingConfirmationToken(
+                    entity.getPendingConfirmationToken()
+            );
         }
 
         session.setLastCategory(entity.getLastCategory());

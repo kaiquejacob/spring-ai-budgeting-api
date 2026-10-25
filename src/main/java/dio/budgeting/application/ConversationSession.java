@@ -11,6 +11,7 @@ public class ConversationSession {
     private final UUID id;
     private final UUID userId;
     private TransactionAiResponse pendingProposal;
+    private UUID pendingConfirmationToken;
     private Category lastCategory;
     private TransactionAiResponse.AiPeriod lastPeriod;
     private Instant expiresAt;
@@ -47,6 +48,7 @@ public class ConversationSession {
 
     public void clearPendingProposal() {
         this.pendingProposal = null;
+        this.pendingConfirmationToken = null;
     }
 
     public Category lastCategory() {
@@ -63,5 +65,13 @@ public class ConversationSession {
 
     public void setLastPeriod(TransactionAiResponse.AiPeriod lastPeriod) {
         this.lastPeriod = lastPeriod;
+    }
+
+    public UUID pendingConfirmationToken() {
+        return pendingConfirmationToken;
+    }
+
+    public void setPendingConfirmationToken(UUID pendingConfirmationToken) {
+        this.pendingConfirmationToken = pendingConfirmationToken;
     }
 }

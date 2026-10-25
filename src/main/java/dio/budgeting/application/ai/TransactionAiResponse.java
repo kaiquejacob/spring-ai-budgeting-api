@@ -8,8 +8,8 @@ public record TransactionAiResponse(
         Long amountInCents,
         Category category,
         AiPeriod period,
-        String messageToUser
-) {
+        String messageToUser,
+        String s) {
 
     public enum AiPeriod {
         TODAY,

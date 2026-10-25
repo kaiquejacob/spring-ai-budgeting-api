@@ -65,8 +65,8 @@ public class AiProviderComparisonService {
                     null,
                     null,
                     null,
-                    "Falha ao processar a solicitação no provedor " + provider + "."
-            );
+                    "Falha ao processar a solicitação no provedor " + provider + ".",
+                    "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
         }
     }
 
