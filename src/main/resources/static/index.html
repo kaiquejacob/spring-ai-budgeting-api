@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+            name="description"
+            content="Interface do assistente de gestão financeira."
+    >
+
+    <title>Gestão Financeira | Assistente</title>
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+
+<body>
+<div class="app-shell">
+
+    <aside class="sidebar" aria-label="Painel de ações">
+        <a class="brand" href="./" aria-label="Gestão Financeira — início">
+            <span class="brand-symbol" aria-hidden="true">GF</span>
+
+            <span class="brand-text">
+                <span class="brand-name">Gestão Financeira</span>
+                <span class="brand-description">Assistente com IA</span>
+            </span>
+        </a>
+
+        <button class="button button-secondary new-conversation" disabled>
+            <span aria-hidden="true">+</span>
+            Nova conversa
+        </button>
+
+        <div class="sidebar-section">
+            <p class="section-label">Área de trabalho</p>
+
+            <div class="navigation-item navigation-item-active">
+                <span class="active-indicator" aria-hidden="true"></span>
+                Assistente financeiro
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <p class="section-label">Documentos e áudio</p>
+
+            <div class="sidebar-actions">
+                <button class="button button-sidebar" disabled>
+                    Enviar recibo
+                    <span class="file-format">Imagem</span>
+                </button>
+
+                <button class="button button-sidebar" disabled>
+                    Enviar áudio
+                    <span class="file-format">Arquivo</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <span class="demo-indicator" aria-hidden="true"></span>
+            Prévia da interface
+        </div>
+    </aside>
+
+    <main class="workspace">
+        <header class="workspace-header">
+            <div>
+                <p class="section-label">Seu espaço financeiro</p>
+                <h1>Assistente financeiro</h1>
+            </div>
+
+            <span class="header-tag">Versão demonstrativa</span>
+        </header>
+
+        <div class="conversation-scroll">
+            <div class="conversation-content">
+
+                <section class="welcome" aria-labelledby="welcome-title">
+                    <span class="eyebrow">Clareza para suas movimentações</span>
+
+                    <h2 id="welcome-title">
+                        Suas finanças, em uma conversa.
+                    </h2>
+
+                    <p class="welcome-description">
+                        Consulte movimentações ou envie um áudio ou recibo
+                        para preparar um registro financeiro.
+                    </p>
+
+                    <div class="suggestions">
+                        <button class="suggestion" disabled>
+                            <span class="suggestion-title">Consultar gastos</span>
+                            <span class="suggestion-description">
+                                Quanto gastei com mercado este mês?
+                            </span>
+                        </button>
+
+                        <button class="suggestion" disabled>
+                            <span class="suggestion-title">Ver movimentações</span>
+                            <span class="suggestion-description">
+                                Mostre minhas últimas transações.
+                            </span>
+                        </button>
+                    </div>
+                </section>
+
+                <section class="demo-conversation"
+                         aria-labelledby="example-title">
+
+                    <div class="example-heading">
+                        <h2 id="example-title">Exemplo de apresentação</h2>
+                        <span>Dados fictícios · nenhum registro será criado</span>
+                    </div>
+
+                    <article class="message message-user">
+                        <span class="message-author">Você</span>
+
+                        <div class="message-bubble">
+                            Enviei um recibo de uma compra de R$ 125,90
+                            no mercado.
+                        </div>
+                    </article>
+
+                    <article class="message message-assistant">
+                        <span class="message-author">Assistente</span>
+
+                        <div class="message-text">
+                            Os dados extraídos seriam apresentados abaixo.
+                            Confira as informações antes de confirmar o registro.
+                        </div>
+
+                        <section class="transaction-card"
+                                 aria-labelledby="proposal-title">
+
+                            <header class="transaction-header">
+                                <span class="section-label">
+                                    Proposta de transação
+                                </span>
+
+                                <span class="status-badge">
+                                    Exemplo
+                                </span>
+                            </header>
+
+                            <h3 id="proposal-title">Compra no mercado</h3>
+                            <p class="transaction-amount">R$ 125,90</p>
+
+                            <dl class="transaction-details">
+                                <div>
+                                    <dt>Categoria</dt>
+                                    <dd>Mercado</dd>
+                                </div>
+
+                                <div>
+                                    <dt>Origem da proposta</dt>
+                                    <dd>Recibo</dd>
+                                </div>
+                            </dl>
+
+                            <div class="transaction-footer">
+                                <p>
+                                    O registro depende da sua confirmação.
+                                </p>
+
+                                <button class="button button-primary" disabled>
+                                    Confirmar registro
+                                </button>
+                            </div>
+                        </section>
+                    </article>
+                </section>
+
+            </div>
+        </div>
+
+        <footer class="composer-area">
+            <div class="composer-container">
+                <label class="visually-hidden" for="message-input">
+                    Sua mensagem para o assistente
+                </label>
+
+                <div class="composer">
+                    <textarea
+                            id="message-input"
+                            rows="2"
+                            placeholder="Digite sua mensagem..."
+                            aria-describedby="composer-help"
+                            disabled
+                    ></textarea>
+
+                    <button class="button button-primary send-button" disabled>
+                        Enviar
+                    </button>
+                </div>
+
+                <p class="composer-help" id="composer-help">
+                    Prévia visual. O envio de mensagens será habilitado
+                    na próxima etapa.
+                </p>
+            </div>
+        </footer>
+    </main>
+
+</div>
+</body>
+</html>
