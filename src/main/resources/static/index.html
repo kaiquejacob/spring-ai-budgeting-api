@@ -6,7 +6,7 @@
 
     <meta
             name="description"
-            content="Interface do assistente de gestão financeira."
+            content="Assistente de gestão financeira."
     >
 
     <title>Gestão Financeira | Assistente</title>
@@ -16,7 +16,6 @@
 
 <body>
 <div class="app-shell">
-
     <aside class="sidebar" aria-label="Painel de ações">
         <a class="brand" href="./" aria-label="Gestão Financeira — início">
             <span class="brand-symbol" aria-hidden="true">GF</span>
@@ -52,11 +51,10 @@
                 <button
                         class="button button-sidebar"
                         type="button"
-                        title="Disponível em uma próxima etapa"
-                        disabled
+                        data-receipt-trigger
                 >
                     Enviar recibo
-                    <span class="file-format">Imagem</span>
+                    <span class="file-format">JPG / PNG</span>
                 </button>
 
                 <button
@@ -66,7 +64,7 @@
                         disabled
                 >
                     Enviar áudio
-                    <span class="file-format">Arquivo</span>
+                    <span class="file-format">Em breve</span>
                 </button>
             </div>
         </div>
@@ -89,7 +87,6 @@
 
         <div class="conversation-scroll">
             <div class="conversation-content">
-
                 <section
                         id="welcome"
                         class="welcome"
@@ -104,9 +101,9 @@
                     </h2>
 
                     <p class="welcome-description">
-                        Consulte suas movimentações em linguagem natural.
-                        O envio de áudio e recibos será habilitado
-                        em uma próxima etapa.
+                        Consulte movimentações ou envie um recibo.
+                        Confira os dados extraídos antes de confirmar
+                        qualquer registro.
                     </p>
 
                     <div class="suggestions">
@@ -114,7 +111,6 @@
                             <span class="suggestion-title">
                                 Consultar gastos
                             </span>
-
                             <span class="suggestion-description">
                                 Quanto gastei com mercado este mês?
                             </span>
@@ -124,7 +120,6 @@
                             <span class="suggestion-title">
                                 Ver movimentações
                             </span>
-
                             <span class="suggestion-description">
                                 Mostre minhas últimas transações.
                             </span>
@@ -140,7 +135,6 @@
                         aria-relevant="additions"
                         aria-label="Mensagens da conversa"
                 ></section>
-
             </div>
         </div>
 
@@ -158,6 +152,27 @@
                         role="alert"
                         hidden
                 ></p>
+
+                <div class="composer-tools">
+                    <button
+                            class="button button-secondary attachment-button"
+                            type="button"
+                            data-receipt-trigger
+                    >
+                        Anexar recibo
+                    </button>
+
+                    <span class="upload-hint">
+                        JPG ou PNG · até 9 MB
+                    </span>
+                </div>
+
+                <input
+                        id="receipt-input"
+                        type="file"
+                        accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                        hidden
+                >
 
                 <form id="chat-form" class="composer">
                     <label class="visually-hidden" for="message-input">
@@ -185,12 +200,11 @@
 
                 <p class="composer-help" id="composer-help">
                     Enter para enviar · Shift + Enter para uma nova linha.
-                    Confira as informações fornecidas pelo assistente.
+                    Recibos são enviados para análise por IA.
                 </p>
             </div>
         </footer>
     </main>
-
 </div>
 
 <script type="module" src="./js/app.js"></script>

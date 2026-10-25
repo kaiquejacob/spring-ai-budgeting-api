@@ -1,4 +1,8 @@
-import { sendChatMessage } from "./api.js";
+import {
+    sendChatMessage,
+    sendReceipt,
+    confirmTransaction
+} from "./api.js";
 
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message-input");
@@ -12,9 +16,25 @@ const status = document.querySelector("#chat-status");
 const errorBox = document.querySelector("#chat-error");
 const scrollContainer = document.querySelector(".conversation-scroll");
 const suggestions = document.querySelectorAll(".suggestion");
+const receiptInput = document.querySelector("#receipt-input");
+const receiptTriggers = document.querySelectorAll(
+    "[data-receipt-trigger]"
+);
+
+const currency = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+});
+
+const categoryNames = {
+    GROCERIES: "Mercado",
+    PHARMA: "Farmácia",
+    AUTO: "Automóvel"
+};
 
 let sessionId = null;
 let busy = false;
+let pendingProposal = null;
 
 function scrollToLatest() {
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
@@ -29,8 +49,32 @@ function updateControls() {
         button.disabled = busy;
     });
 
+    receiptTriggers.forEach((button) => {
+        button.disabled = busy || pendingProposal !== null;
+    });
+
+    if (pendingProposal) {
+        pendingProposal.button.disabled =
+            busy || pendingProposal.state !== "pending";
+    }
+
     sendButton.textContent = busy ? "Aguarde…" : "Enviar";
     form.setAttribute("aria-busy", String(busy));
+}
+
+function beginOperation(message) {
+    busy = true;
+    clearError();
+    welcome.hidden = true;
+    status.textContent = message;
+    updateControls();
+}
+
+function finishOperation() {
+    busy = false;
+    status.textContent = "";
+    updateControls();
+    input.focus();
 }
 
 function clearError() {
@@ -43,37 +87,236 @@ function showError(message) {
     errorBox.hidden = false;
 }
 
+function errorMessage(error) {
+    return error instanceof Error
+        ? error.message
+        : "Ocorreu uma falha inesperada.";
+}
+
+function element(tag, className, text) {
+    const node = document.createElement(tag);
+
+    if (className) {
+        node.className = className;
+    }
+
+    if (text !== undefined) {
+        node.textContent = text;
+    }
+
+    return node;
+}
+
 function addMessage(author, text, userMessage = false) {
-    const article = document.createElement("article");
+    const article = element(
+        "article",
+        userMessage
+            ? "message message-user"
+            : "message message-assistant"
+    );
 
-    article.className = userMessage
-        ? "message message-user"
-        : "message message-assistant";
+    article.append(
+        element("span", "message-author", author),
+        element(
+            "div",
+            userMessage ? "message-bubble" : "message-text",
+            text
+        )
+    );
 
-    const authorElement = document.createElement("span");
-    authorElement.className = "message-author";
-    authorElement.textContent = author;
-
-    const content = document.createElement("div");
-    content.className = userMessage
-        ? "message-bubble"
-        : "message-text";
-
-    content.textContent = text;
-
-    article.append(authorElement, content);
     messages.append(article);
-
     scrollToLatest();
 
     return article;
 }
 
 function addNotice(text) {
-    const notice = document.createElement("p");
-    notice.className = "conversation-notice";
-    notice.textContent = text;
-    messages.append(notice);
+    messages.append(
+        element("p", "conversation-notice", text)
+    );
+
+    scrollToLatest();
+}
+
+function updateSession(nextSessionId) {
+    if (sessionId && sessionId !== nextSessionId) {
+        addNotice(
+            "O servidor iniciou uma nova sessão. O contexto anterior pode não estar disponível."
+        );
+    }
+
+    sessionId = nextSessionId;
+}
+
+function addDetail(list, label, value) {
+    const row = document.createElement("div");
+
+    row.append(
+        element("dt", "", label),
+        element("dd", "", value)
+    );
+
+    list.append(row);
+}
+
+function validateProposal(data) {
+    const proposal = data.proposedTransaction;
+
+    if (
+        typeof data.confirmationToken !== "string" ||
+        !data.confirmationToken ||
+        !proposal ||
+        typeof proposal.description !== "string" ||
+        !proposal.description.trim() ||
+        typeof proposal.amount !== "number" ||
+        !Number.isFinite(proposal.amount) ||
+        proposal.amount <= 0 ||
+        !Object.hasOwn(categoryNames, proposal.category)
+    ) {
+        throw new Error(
+            "A proposta recebida está incompleta. Nenhum registro foi confirmado."
+        );
+    }
+}
+
+function renderProposal(data) {
+    validateProposal(data);
+
+    const proposal = data.proposedTransaction;
+
+    const article = addMessage(
+        "Assistente",
+        "Confira os dados extraídos. A transação ainda não foi registrada."
+    );
+
+    const card = element("section", "transaction-card");
+    card.setAttribute("aria-label", "Proposta de transação");
+
+    const header = element("header", "transaction-header");
+    const badge = element(
+        "span",
+        "status-badge",
+        "Aguardando confirmação"
+    );
+
+    header.append(
+        element("span", "section-label", "Proposta de transação"),
+        badge
+    );
+
+    const details = element("dl", "transaction-details");
+
+    addDetail(
+        details,
+        "Categoria",
+        categoryNames[proposal.category]
+    );
+
+    addDetail(details, "Origem da proposta", "Recibo");
+
+    const footer = element("div", "transaction-footer");
+
+    const help = element(
+        "p",
+        "",
+        "Confira o recibo original. Confirme em até 5 minutos. Se os dados estiverem incorretos, não confirme."
+    );
+
+    const button = element(
+        "button",
+        "button button-primary",
+        "Confirmar registro"
+    );
+
+    button.type = "button";
+
+    footer.append(help, button);
+
+    card.append(
+        header,
+        element("h3", "", proposal.description),
+        element(
+            "p",
+            "transaction-amount",
+            currency.format(proposal.amount)
+        ),
+        details,
+        footer
+    );
+
+    article.append(card);
+
+    const entry = {
+        token: data.confirmationToken,
+        sessionId: data.sessionId,
+        state: "pending",
+        card,
+        badge,
+        help,
+        button
+    };
+
+    pendingProposal = entry;
+
+    button.addEventListener("click", () => {
+        confirmProposal(entry);
+    });
+
+    updateControls();
+    scrollToLatest();
+}
+
+async function confirmProposal(entry) {
+    if (
+        busy ||
+        pendingProposal !== entry ||
+        entry.state !== "pending"
+    ) {
+        return;
+    }
+
+    entry.state = "confirming";
+    entry.button.textContent = "Confirmando…";
+
+    beginOperation("Registrando transação…");
+
+    try {
+        const data = await confirmTransaction(
+            entry.token,
+            entry.sessionId
+        );
+
+        entry.state = "confirmed";
+        entry.card.classList.add("is-confirmed");
+        entry.badge.classList.add("is-confirmed");
+        entry.badge.textContent = "Registrada";
+        entry.button.textContent = "Registro confirmado";
+        entry.help.textContent =
+            "Transação registrada. Este botão não pode ser utilizado novamente.";
+
+        pendingProposal = null;
+
+        addMessage(
+            "Assistente",
+            typeof data.message === "string"
+                ? data.message
+                : "Transação registrada com sucesso."
+        );
+    } catch (error) {
+        entry.state = "unverified";
+        entry.badge.textContent = "Confirmação não verificada";
+        entry.button.textContent = "Verifique as movimentações";
+
+        entry.help.textContent =
+            "Não foi possível verificar a confirmação. Consulte as últimas transações antes de gerar outra proposta.";
+
+        showError(
+            `${errorMessage(error)} Não houve reenvio automático.`
+        );
+    } finally {
+        entry.button.disabled = true;
+        finishOperation();
+    }
 }
 
 async function submitMessage(event) {
@@ -85,52 +328,104 @@ async function submitMessage(event) {
         return;
     }
 
-    busy = true;
-    clearError();
-    welcome.hidden = true;
+    beginOperation("Consultando informações…");
 
     const userArticle = addMessage("Você", message, true);
-
     input.value = "";
-    status.textContent = "Consultando informações…";
     updateControls();
 
     try {
-        const previousSessionId = sessionId;
-
         const data = await sendChatMessage(message, sessionId);
 
-        sessionId = data.sessionId;
-
-        if (
-            previousSessionId &&
-            previousSessionId !== sessionId
-        ) {
-            addNotice(
-                "Uma nova sessão foi iniciada pelo servidor. O contexto anterior pode não estar disponível."
-            );
-        }
-
+        updateSession(data.sessionId);
         addMessage("Assistente", data.answer);
     } catch (error) {
-        const deliveryStatus = document.createElement("span");
-        deliveryStatus.className = "message-delivery-status";
-        deliveryStatus.textContent = "Resposta não recebida.";
-
-        userArticle.append(deliveryStatus);
+        userArticle.append(
+            element(
+                "span",
+                "message-delivery-status",
+                "Resposta não recebida."
+            )
+        );
 
         input.value = message;
-
-        showError(
-            error instanceof Error
-                ? error.message
-                : "Ocorreu uma falha inesperada."
-        );
+        showError(errorMessage(error));
     } finally {
-        busy = false;
-        status.textContent = "";
-        updateControls();
-        input.focus();
+        finishOperation();
+    }
+}
+
+function validateReceipt(file) {
+    const validExtension = /\.(jpe?g|png)$/i.test(file.name);
+    const validMime =
+        !file.type ||
+        file.type === "image/jpeg" ||
+        file.type === "image/png";
+
+    if (!validExtension || !validMime) {
+        throw new Error("Selecione uma imagem JPG ou PNG.");
+    }
+
+    if (file.size === 0) {
+        throw new Error("O arquivo selecionado está vazio.");
+    }
+
+    if (file.size > 9 * 1024 * 1024) {
+        throw new Error(
+            "Selecione uma imagem de até 9 MB."
+        );
+    }
+}
+
+async function uploadReceipt(file) {
+    if (busy || pendingProposal) {
+        return;
+    }
+
+    clearError();
+
+    try {
+        validateReceipt(file);
+    } catch (error) {
+        showError(errorMessage(error));
+        return;
+    }
+
+    beginOperation("Analisando recibo…");
+
+    const userArticle = addMessage(
+        "Você",
+        `Recibo enviado: ${file.name}`,
+        true
+    );
+
+    try {
+        const data = await sendReceipt(file, sessionId);
+
+        updateSession(data.sessionId);
+
+        if (data.intent === "CREATE_TRANSACTION") {
+            renderProposal(data);
+        } else {
+            addMessage(
+                "Assistente",
+                typeof data.message === "string" && data.message.trim()
+                    ? data.message
+                    : "Não foi possível extrair uma proposta desse recibo."
+            );
+        }
+    } catch (error) {
+        userArticle.append(
+            element(
+                "span",
+                "message-delivery-status",
+                "Não foi possível concluir a análise."
+            )
+        );
+
+        showError(errorMessage(error));
+    } finally {
+        finishOperation();
     }
 }
 
@@ -168,16 +463,50 @@ suggestions.forEach((button) => {
     });
 });
 
+receiptTriggers.forEach((button) => {
+    button.addEventListener("click", () => {
+        if (!busy && !pendingProposal) {
+            receiptInput.click();
+        }
+    });
+});
+
+receiptInput.addEventListener("change", () => {
+    const file = receiptInput.files?.[0];
+
+    receiptInput.value = "";
+
+    if (file) {
+        uploadReceipt(file);
+    }
+});
+
 newConversationButton.addEventListener("click", () => {
     if (busy) {
         return;
     }
 
+    if (pendingProposal) {
+        const proceed = window.confirm(
+            "Esta conversa possui uma proposta pendente ou uma confirmação não verificada. " +
+            "Iniciar outra conversa não cancela propostas nem desfaz registros. " +
+            "Se houve falha na confirmação, confira as movimentações antes de registrar novamente. Continuar?"
+        );
+
+        if (!proceed) {
+            return;
+        }
+    }
+
     sessionId = null;
+    pendingProposal = null;
+
     messages.replaceChildren();
     welcome.hidden = false;
     input.value = "";
     status.textContent = "";
+    receiptInput.value = "";
+
     clearError();
     updateControls();
 

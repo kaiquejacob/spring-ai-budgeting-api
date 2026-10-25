@@ -1,53 +1,118 @@
-// Identificação para demonstração local. Não representa autenticação.
+// Usuário de demonstração local. Não representa autenticação.
 const DEMO_USER_ID = "11111111-1111-1111-1111-111111111111";
 
-export async function sendChatMessage(message, sessionId) {
-    const url = new URL(
-        "/transactions/ai/chat",
-        window.location.origin
-    );
+function createUrl(path, sessionId) {
+    const url = new URL(path, window.location.origin);
 
     if (sessionId) {
         url.searchParams.set("sessionId", sessionId);
     }
 
+    return url;
+}
+
+async function request(path, sessionId, options = {}) {
     let response;
 
     try {
-        response = await fetch(url, {
-            method: "POST",
+        response = await fetch(createUrl(path, sessionId), {
+            ...options,
             headers: {
-                "Content-Type": "application/json",
                 "Accept": "application/json",
-                "X-User-Id": DEMO_USER_ID
-            },
-            body: JSON.stringify({ message })
+                "X-User-Id": DEMO_USER_ID,
+                ...options.headers
+            }
         });
     } catch {
         throw new Error(
-            "Não foi possível conectar ao servidor. Verifique se a aplicação está em execução."
+            "Não foi possível receber uma resposta do servidor. Verifique a conexão e se a aplicação está em execução."
         );
     }
 
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-        const serverMessage =
+        throw new Error(
             typeof data?.message === "string"
                 ? data.message
-                : `A solicitação falhou (HTTP ${response.status}).`;
-
-        throw new Error(serverMessage);
+                : `A solicitação falhou (HTTP ${response.status}).`
+        );
     }
 
+    if (!data || typeof data !== "object") {
+        throw new Error("O servidor retornou uma resposta inválida.");
+    }
+
+    return data;
+}
+
+export async function sendChatMessage(message, sessionId) {
+    const data = await request(
+        "/transactions/ai/chat",
+        sessionId,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ message })
+        }
+    );
+
     if (
-        typeof data?.answer !== "string" ||
+        typeof data.answer !== "string" ||
         !data.answer.trim() ||
-        typeof data?.sessionId !== "string" ||
-        !data.sessionId.trim()
+        typeof data.sessionId !== "string" ||
+        !data.sessionId
     ) {
         throw new Error(
-            "O servidor retornou uma resposta incompleta. Tente iniciar uma nova conversa."
+            "O servidor retornou uma resposta de chat incompleta."
+        );
+    }
+
+    return data;
+}
+
+export async function sendReceipt(file, sessionId) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const data = await request(
+        "/transactions/ai/receipt",
+        sessionId,
+        {
+            method: "POST",
+            body: formData
+        }
+    );
+
+    if (
+        typeof data.intent !== "string" ||
+        typeof data.sessionId !== "string"
+    ) {
+        throw new Error(
+            "O servidor retornou uma resposta de recibo incompleta."
+        );
+    }
+
+    return data;
+}
+
+export async function confirmTransaction(token, sessionId) {
+    const data = await request(
+        `/transactions/${encodeURIComponent(token)}/confirm`,
+        sessionId,
+        {
+            method: "POST"
+        }
+    );
+
+    if (
+        data.intent !== "CREATE_TRANSACTION" ||
+        !data.createdTransaction
+    ) {
+        throw new Error(
+            "Não foi possível verificar o resultado da confirmação."
         );
     }
 

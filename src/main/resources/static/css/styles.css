@@ -19,6 +19,10 @@
     --error-border: #70434b;
     --error-text: #f2c1c8;
 
+    --success-background: #14251d;
+    --success-border: #315d46;
+    --success-text: #b7dec7;
+
     --radius-small: 8px;
     --radius-medium: 12px;
 
@@ -28,8 +32,6 @@
             "Segoe UI",
             sans-serif;
 }
-
-/* Base */
 
 * {
     box-sizing: border-box;
@@ -243,6 +245,11 @@ textarea {
     color: var(--text-secondary);
 }
 
+.button-sidebar:not(:disabled):hover {
+    background: var(--surface);
+    color: var(--text);
+}
+
 .file-format {
     color: var(--text-secondary);
     font-size: 11px;
@@ -342,7 +349,7 @@ textarea {
     color: var(--text-secondary);
 }
 
-/* Sugestões de perguntas */
+/* Sugestões */
 
 .suggestions {
     display: grid;
@@ -440,7 +447,7 @@ textarea {
     overflow-wrap: anywhere;
 }
 
-/* Propostas: estilos reservados para a próxima integração */
+/* Proposta */
 
 .transaction-card {
     width: min(100%, 480px);
@@ -519,7 +526,17 @@ textarea {
     width: 100%;
 }
 
-/* Campo de mensagem */
+.transaction-card.is-confirmed {
+    border-color: var(--success-border);
+}
+
+.status-badge.is-confirmed {
+    background: var(--success-background);
+    border-color: var(--success-border);
+    color: var(--success-text);
+}
+
+/* Campo de mensagem e anexos */
 
 .composer-area {
     flex-shrink: 0;
@@ -549,6 +566,25 @@ textarea {
     color: var(--error-text);
     font-size: 12px;
     overflow-wrap: anywhere;
+}
+
+.composer-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.attachment-button {
+    min-height: 36px;
+    padding: 7px 12px;
+    font-size: 12px;
+}
+
+.upload-hint {
+    color: var(--text-secondary);
+    font-size: 11px;
 }
 
 .composer {
@@ -593,8 +629,6 @@ textarea {
     text-align: center;
 }
 
-/* Acessibilidade */
-
 .visually-hidden {
     position: absolute;
     width: 1px;
@@ -607,7 +641,7 @@ textarea {
     border: 0;
 }
 
-/* Tablets e telas intermediárias */
+/* Responsividade */
 
 @media (max-width: 900px) {
     .app-shell {
@@ -632,8 +666,6 @@ textarea {
         grid-template-columns: 1fr;
     }
 }
-
-/* Celulares */
 
 @media (max-width: 640px) {
     .app-shell {
@@ -701,6 +733,11 @@ textarea {
         padding: 18px;
     }
 
+    .transaction-header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
     .message-bubble {
         max-width: 95%;
     }
@@ -719,8 +756,6 @@ textarea {
         padding-left: 12px;
     }
 }
-
-/* Preferência por movimento reduzido */
 
 @media (prefers-reduced-motion: reduce) {
     *,
