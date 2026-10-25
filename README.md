@@ -198,7 +198,7 @@ A API estará disponível em: `http://localhost:8080`
 Para rodar a API e o MySQL juntos em containers:
 
 ```bash
-docker compose up -d --build
+docker compose --profile docker up -d --build
 ```
 
 O endpoint de saúde fica em `http://localhost:8080/actuator/health`.

@@ -16,6 +16,7 @@ import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -383,7 +384,18 @@ public class TransactionController {
             @RequestParam(value = "sessionId", required = false) UUID sessionId,
             @RequestBody FinancialChatRequest request
     ) {
-        var session = conversationSessionService.getOrCreate(sessionId, userId);
+        if (request.message() == null || request.message().isBlank()) {
+            throw new IllegalArgumentException(
+                    "Informe uma mensagem para o assistente."
+            );
+        }
+
+        var session = conversationSessionService.getOrCreate(
+                sessionId,
+                userId
+        );
+
+        var conversationId = userId + ":" + session.id();
 
         var tools = new FinancialTools(
                 userId,
@@ -395,6 +407,10 @@ public class TransactionController {
         var answer = financialToolChatClient
                 .prompt()
                 .user(request.message())
+                .advisors(advisor -> advisor.param(
+                        ChatMemory.CONVERSATION_ID,
+                        conversationId
+                ))
                 .tools(tools)
                 .call()
                 .content();

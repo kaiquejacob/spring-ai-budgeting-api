@@ -18,6 +18,8 @@ services:
       retries: 10
 
   app:
+    profiles:
+      - docker
     build: .
     container_name: budgeting-api
     depends_on:
