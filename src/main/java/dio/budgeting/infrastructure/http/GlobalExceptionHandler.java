@@ -2,19 +2,29 @@ package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.ai.AiProcessingException;
+import dio.budgeting.domain.InvalidTransactionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import dio.budgeting.application.SessionAccessDeniedException;
 
 import java.time.Instant;
 import java.util.Map;
 
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log =
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
@@ -46,6 +56,79 @@ public class GlobalExceptionHandler {
                         "status", HttpStatus.BAD_REQUEST.value(),
                         "error", "INVALID_REQUEST",
                         "message", exception.getMessage(),
+                        "timestamp", Instant.now().toString()
+                )
+        );
+    }
+
+    @ExceptionHandler(InvalidTransactionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTransaction(
+            InvalidTransactionException exception
+    ) {
+        log.warn("Invalid transaction: {}", exception.getMessage());
+
+        return badRequest("INVALID_REQUEST", exception.getMessage());
+    }
+
+    @ExceptionHandler({
+            MissingRequestHeaderException.class,
+            MethodArgumentTypeMismatchException.class
+    })
+    public ResponseEntity<Map<String, Object>> handleRequestMappingBadRequest(
+            Exception exception
+    ) {
+        log.warn("Invalid request: {}", exception.getMessage());
+
+        return badRequest("INVALID_REQUEST", "A requisição contém parâmetros inválidos.");
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        log.warn("Malformed request body.");
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                badRequestBody("INVALID_REQUEST", "O corpo da requisição é inválido.")
+        );
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        log.warn("HTTP method not supported: {}", exception.getMethod());
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(
+                Map.of(
+                        "status", HttpStatus.METHOD_NOT_ALLOWED.value(),
+                        "error", "METHOD_NOT_ALLOWED",
+                        "message", "Método HTTP não suportado.",
+                        "timestamp", Instant.now().toString()
+                )
+        );
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        log.warn("Media type not supported: {}", exception.getContentType());
+
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(
+                Map.of(
+                        "status", HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+                        "error", "UNSUPPORTED_MEDIA_TYPE",
+                        "message", "Tipo de conteúdo não suportado.",
                         "timestamp", Instant.now().toString()
                 )
         );
@@ -96,6 +179,27 @@ public class GlobalExceptionHandler {
                         "message", exception.getMessage(),
                         "timestamp", Instant.now().toString()
                 )
+        );
+    }
+
+    private ResponseEntity<Map<String, Object>> badRequest(
+            String error,
+            String message
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                badRequestBody(error, message)
+        );
+    }
+
+    private Map<String, Object> badRequestBody(
+            String error,
+            String message
+    ) {
+        return Map.of(
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", error,
+                "message", message,
+                "timestamp", Instant.now().toString()
         );
     }
 
