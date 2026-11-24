@@ -6,14 +6,23 @@ import dio.budgeting.domain.Transaction;
 import dio.budgeting.domain.TransactionRepository;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Clock;
 
 @Service
 public class PersistTransactionUseCase {
 
     private final TransactionRepository transactionRepository;
+    private final Clock clock;
 
-    public PersistTransactionUseCase(TransactionRepository transactionRepository) {
+    @Autowired
+    public PersistTransactionUseCase(
+            TransactionRepository transactionRepository,
+            Clock clock
+    ) {
         this.transactionRepository = transactionRepository;
+        this.clock = clock;
     }
 
     @Tool(name = "persist-transaction", description = "Persiste uma nova transação financeira")
@@ -24,7 +33,8 @@ public class PersistTransactionUseCase {
                         input.amountInCents(),
                         input.category(),
                         input.source(),
-                        input.userId()
+                        input.userId(),
+                        clock
                 )
         );
 

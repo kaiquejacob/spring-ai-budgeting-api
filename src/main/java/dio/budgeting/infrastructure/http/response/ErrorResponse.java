@@ -2,6 +2,7 @@ package dio.budgeting.infrastructure.http.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
+import java.time.Clock;
 
 @Schema(description = "Formato padrão de erro da API")
 public record ErrorResponse(
@@ -15,7 +16,7 @@ public record ErrorResponse(
         Instant timestamp
 ) {
 
-    public static ErrorResponse of(int status, String error, String message) {
-        return new ErrorResponse(status, error, message, Instant.now());
+    public static ErrorResponse of(int status, String error, String message, Clock clock) {
+        return new ErrorResponse(status, error, message, clock.instant());
     }
 }

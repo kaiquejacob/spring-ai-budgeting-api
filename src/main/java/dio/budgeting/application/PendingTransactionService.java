@@ -2,8 +2,10 @@ package dio.budgeting.application;
 
 import dio.budgeting.application.ai.TransactionAiResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -23,6 +25,12 @@ public class PendingTransactionService {
 
     private final Map<UUID, PendingTransaction> pendingTransactions =
             new ConcurrentHashMap<>();
+    private final Clock clock;
+
+    @Autowired
+    public PendingTransactionService(Clock clock) {
+        this.clock = clock;
+    }
 
     public UUID save(
             UUID userId,
@@ -38,7 +46,7 @@ public class PendingTransactionService {
                 new PendingTransaction(
                         userId,
                         proposal,
-                        Instant.now().plusSeconds(EXPIRATION_SECONDS)
+                        clock.instant().plusSeconds(EXPIRATION_SECONDS)
                 )
         );
 
@@ -57,7 +65,7 @@ public class PendingTransactionService {
             );
         }
 
-        if (!Instant.now().isBefore(pending.expiresAt())) {
+        if (!clock.instant().isBefore(pending.expiresAt())) {
             pendingTransactions.remove(token, pending);
 
             throw new PendingTransactionException("Proposta expirada.");

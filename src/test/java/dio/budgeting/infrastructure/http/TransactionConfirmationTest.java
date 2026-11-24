@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,7 +38,9 @@ class TransactionConfirmationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        pendingService = new PendingTransactionService();
+        pendingService = new PendingTransactionService(
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
         persistUseCase = mock(PersistTransactionUseCase.class);
         audioUseCase = mock(ProcessTransactionAudioUseCase.class);
         sessionService = mock(ConversationSessionService.class);
@@ -57,7 +62,11 @@ class TransactionConfirmationTest {
         );
 
         userId = UUID.randomUUID();
-        session = new ConversationSession(UUID.randomUUID(), userId);
+        session = new ConversationSession(
+                UUID.randomUUID(),
+                userId,
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
 
         var proposal = new TransactionAiResponse(
                 TransactionIntent.CREATE_TRANSACTION,

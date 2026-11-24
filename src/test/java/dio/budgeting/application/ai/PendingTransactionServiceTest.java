@@ -5,6 +5,9 @@ import dio.budgeting.application.PendingTransactionService;
 import dio.budgeting.domain.Category;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import java.util.UUID;
 
@@ -17,7 +20,9 @@ class PendingTransactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PendingTransactionService();
+        service = new PendingTransactionService(
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
     }
 
     @Test

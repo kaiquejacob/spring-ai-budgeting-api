@@ -4,6 +4,7 @@ import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.domain.Category;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.UUID;
 
 public class ConversationSession {
@@ -16,10 +17,11 @@ public class ConversationSession {
     private TransactionAiResponse.AiPeriod lastPeriod;
     private Instant expiresAt;
 
-    public ConversationSession(UUID id, UUID userId) {
+    public ConversationSession(UUID id, UUID userId, Clock clock) {
         this.id = id;
         this.userId = userId;
-        this.expiresAt = Instant.now().plusSeconds(900);
+        this.expiresAt = clock.instant().plusSeconds(900);
+        this.clock = clock;
     }
 
     public UUID id() {
@@ -30,12 +32,14 @@ public class ConversationSession {
         return userId;
     }
 
+    private final Clock clock;
+
     public boolean isExpired() {
-        return Instant.now().isAfter(expiresAt);
+        return clock.instant().isAfter(expiresAt);
     }
 
     public void renew() {
-        this.expiresAt = Instant.now().plusSeconds(900);
+        this.expiresAt = clock.instant().plusSeconds(900);
     }
 
     public TransactionAiResponse pendingProposal() {

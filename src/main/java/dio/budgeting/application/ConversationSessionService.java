@@ -5,8 +5,10 @@ import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.infrastructure.persistence.entity.ConversationSessionEntity;
 import dio.budgeting.infrastructure.persistence.repository.ConversationSessionJpaRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.UUID;
 
 @Service
@@ -15,11 +17,15 @@ public class ConversationSessionService {
     private static final long SESSION_DURATION_SECONDS = 900;
 
     private final ConversationSessionJpaRepository repository;
+    private final Clock clock;
 
+    @Autowired
     public ConversationSessionService(
-            ConversationSessionJpaRepository repository
+            ConversationSessionJpaRepository repository,
+            Clock clock
     ) {
         this.repository = repository;
+        this.clock = clock;
     }
 
     public ConversationSession getOrCreate(UUID sessionId, UUID userId) {
@@ -35,12 +41,12 @@ public class ConversationSessionService {
             entity = new ConversationSessionEntity(
                     UUID.randomUUID(),
                     userId,
-                    Instant.now().plusSeconds(SESSION_DURATION_SECONDS)
+                    clock.instant().plusSeconds(SESSION_DURATION_SECONDS)
             );
         }
 
         entity.setExpiresAt(
-                Instant.now().plusSeconds(SESSION_DURATION_SECONDS)
+                clock.instant().plusSeconds(SESSION_DURATION_SECONDS)
         );
 
         repository.save(entity);
@@ -63,7 +69,7 @@ public class ConversationSessionService {
         }
 
         entity.setExpiresAt(
-                Instant.now().plusSeconds(SESSION_DURATION_SECONDS)
+                clock.instant().plusSeconds(SESSION_DURATION_SECONDS)
         );
 
         if (session.pendingProposal() == null) {
@@ -111,13 +117,14 @@ public class ConversationSessionService {
     }
 
     private boolean isExpired(ConversationSessionEntity entity) {
-        return Instant.now().isAfter(entity.getExpiresAt());
+        return clock.instant().isAfter(entity.getExpiresAt());
     }
 
     private ConversationSession toSession(ConversationSessionEntity entity) {
         var session = new ConversationSession(
                 entity.getId(),
-                entity.getUserId()
+                entity.getUserId(),
+                clock
         );
 
         if (entity.getPendingIntent() != null) {

@@ -7,6 +7,9 @@ import dio.budgeting.infrastructure.persistence.entity.ConversationSessionEntity
 import dio.budgeting.infrastructure.persistence.repository.ConversationSessionJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -18,13 +21,18 @@ import static org.mockito.Mockito.*;
 
 class ConversationSessionServiceTest {
 
+    private static final Instant TEST_INSTANT = Instant.parse("2026-11-23T15:00:00Z");
+
     private ConversationSessionJpaRepository repository;
     private ConversationSessionService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(ConversationSessionJpaRepository.class);
-        service = new ConversationSessionService(repository);
+        service = new ConversationSessionService(
+                repository,
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
     }
 
     @Test
@@ -35,7 +43,7 @@ class ConversationSessionServiceTest {
         var entity = new ConversationSessionEntity(
                 sessionId,
                 userId,
-                Instant.now().plusSeconds(900)
+                TEST_INSTANT.plusSeconds(900)
         );
 
         when(repository.findById(sessionId))
@@ -53,7 +61,7 @@ class ConversationSessionServiceTest {
         var ownerId = UUID.randomUUID();
         var otherUserId = UUID.randomUUID();
         var sessionId = UUID.randomUUID();
-        var expiration = Instant.now().plusSeconds(900);
+        var expiration = TEST_INSTANT.plusSeconds(900);
 
         var entity = new ConversationSessionEntity(
                 sessionId,
@@ -81,7 +89,7 @@ class ConversationSessionServiceTest {
         var entity = new ConversationSessionEntity(
                 oldSessionId,
                 userId,
-                Instant.now().minusSeconds(60)
+                TEST_INSTANT.minusSeconds(60)
         );
 
         when(repository.findById(oldSessionId))
@@ -101,7 +109,7 @@ class ConversationSessionServiceTest {
         var entity = new ConversationSessionEntity(
                 sessionId,
                 UUID.randomUUID(),
-                Instant.now().minusSeconds(60)
+                TEST_INSTANT.minusSeconds(60)
         );
 
         when(repository.findById(sessionId))
@@ -125,7 +133,7 @@ class ConversationSessionServiceTest {
         var entity = new ConversationSessionEntity(
                 sessionId,
                 UUID.randomUUID(),
-                Instant.now().plusSeconds(900)
+                TEST_INSTANT.plusSeconds(900)
         );
 
         when(repository.findById(sessionId))
@@ -133,7 +141,8 @@ class ConversationSessionServiceTest {
 
         var unauthorizedSession = new ConversationSession(
                 sessionId,
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
         );
 
         assertThrows(

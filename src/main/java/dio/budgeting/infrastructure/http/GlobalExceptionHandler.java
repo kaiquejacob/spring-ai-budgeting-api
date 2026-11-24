@@ -26,6 +26,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log =
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final Clock clock;
+
+    public GlobalExceptionHandler(Clock clock) {
+        this.clock = clock;
+    }
 
     @ExceptionHandler(AiProcessingException.class)
     public ResponseEntity<Map<String, Object>> handleAiProcessingException(
@@ -47,7 +53,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
                         "error", "AI_SERVICE_UNAVAILABLE",
                         "message", "Não foi possível processar sua solicitação agora. Tente novamente em instantes.",
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -63,7 +69,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.BAD_REQUEST.value(),
                         "error", "INVALID_REQUEST",
                         "message", exception.getMessage(),
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -206,7 +212,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.METHOD_NOT_ALLOWED.value(),
                         "error", "METHOD_NOT_ALLOWED",
                         "message", "Método HTTP não suportado.",
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -225,7 +231,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
                         "error", "UNSUPPORTED_MEDIA_TYPE",
                         "message", "Tipo de conteúdo não suportado.",
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -241,7 +247,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
                         "error", "INTERNAL_ERROR",
                         "message", "Ocorreu um erro inesperado.",
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -257,7 +263,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.NOT_FOUND.value(),
                         "error", "PENDING_TRANSACTION_NOT_FOUND",
                         "message", exception.getMessage(),
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -273,7 +279,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "status", HttpStatus.FORBIDDEN.value(),
                         "error", "SESSION_ACCESS_DENIED",
                         "message", exception.getMessage(),
-                        "timestamp", Instant.now().toString()
+                        "timestamp", clock.instant().toString()
                 )
         );
     }
@@ -295,7 +301,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "status", HttpStatus.BAD_REQUEST.value(),
                 "error", error,
                 "message", message,
-                "timestamp", Instant.now().toString()
+                "timestamp", clock.instant().toString()
         );
     }
 
