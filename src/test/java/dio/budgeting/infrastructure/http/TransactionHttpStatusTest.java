@@ -142,6 +142,21 @@ class TransactionHttpStatusTest {
     }
 
     @Test
+    void shouldExposeOpenApiDocumentation() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/transactions']").exists())
+                .andExpect(jsonPath("$.paths['/transactions/{category}']").exists())
+                .andExpect(jsonPath("$.paths['/transactions/ai/chat']").exists());
+    }
+
+    @Test
+    void shouldExposeSwaggerUiRoute() throws Exception {
+        mockMvc.perform(get("/swagger-ui.html"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
     void shouldListBlankDescriptionAsValidationFieldError() throws Exception {
         mockMvc.perform(post("/transactions")
                         .header("X-User-Id", USER_ID)
