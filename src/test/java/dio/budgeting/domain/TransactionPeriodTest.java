@@ -4,17 +4,14 @@ import dio.budgeting.application.ai.TransactionAiResponse;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.Clock;
 import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionPeriodTest {
 
-    private static final ZoneId ZONE = ZoneId.systemDefault();
     private static final Clock TEST_CLOCK = Clock.fixed(
             Instant.parse("2026-11-23T15:00:00Z"),
             ZoneId.of("America/Sao_Paulo")
@@ -106,11 +103,12 @@ class TransactionPeriodTest {
                 TEST_CLOCK
         );
 
-        var today = LocalDate.now(ZONE);
-
-        assertEquals(today.atStartOfDay(ZONE).toInstant(), period.startDate());
         assertEquals(
-                today.plusDays(1).atStartOfDay(ZONE).toInstant(),
+                Instant.parse("2026-11-23T03:00:00Z"),
+                period.startDate()
+        );
+        assertEquals(
+                Instant.parse("2026-11-24T03:00:00Z"),
                 period.endDate()
         );
     }
@@ -122,14 +120,12 @@ class TransactionPeriodTest {
                 TEST_CLOCK
         );
 
-        var yesterday = LocalDate.now(ZONE).minusDays(1);
-
         assertEquals(
-                yesterday.atStartOfDay(ZONE).toInstant(),
+                Instant.parse("2026-11-22T03:00:00Z"),
                 period.startDate()
         );
         assertEquals(
-                yesterday.plusDays(1).atStartOfDay(ZONE).toInstant(),
+                Instant.parse("2026-11-23T03:00:00Z"),
                 period.endDate()
         );
     }
@@ -141,12 +137,13 @@ class TransactionPeriodTest {
                 TEST_CLOCK
         );
 
-        var today = LocalDate.now(ZONE);
-
         assertEquals(
-                today.withDayOfMonth(1).atStartOfDay(ZONE).toInstant(),
+                Instant.parse("2026-11-01T03:00:00Z"),
                 period.startDate()
         );
-        assertTrue(period.endDate().isAfter(period.startDate()));
+        assertEquals(
+                Instant.parse("2026-11-24T03:00:00Z"),
+                period.endDate()
+        );
     }
 }

@@ -42,6 +42,7 @@ dependencies {
 }
 
 tasks.named('test') {
+    jvmArgs '-Duser.timezone=UTC'
     useJUnitPlatform {
         excludeTags 'groq-evaluation'
     }
