@@ -24,12 +24,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/transactions")
+@Validated
 public class TransactionController {
 
     private static final Logger log =
@@ -82,7 +85,7 @@ public class TransactionController {
     @ResponseStatus(HttpStatus.CREATED)
     public TransactionResponse createTransaction(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestBody TransactionRequest request
+            @Valid @RequestBody TransactionRequest request
     ) {
         var transaction = persistTransactionUseCase.execute(
                 request.toInput(userId)
@@ -382,7 +385,7 @@ public class TransactionController {
     public FinancialChatResponse chat(
             @RequestHeader("X-User-Id") UUID userId,
             @RequestParam(value = "sessionId", required = false) UUID sessionId,
-            @RequestBody FinancialChatRequest request
+            @Valid @RequestBody FinancialChatRequest request
     ) {
         if (request.message() == null || request.message().isBlank()) {
             throw new IllegalArgumentException(
@@ -421,7 +424,7 @@ public class TransactionController {
     @PostMapping("/suggest-category")
     public CategorySuggestionResponse suggestCategory(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestBody CategorySuggestionRequest request
+            @Valid @RequestBody CategorySuggestionRequest request
     ) {
         var category = suggestCategoryUseCase.execute(request.description());
 
@@ -464,7 +467,7 @@ public class TransactionController {
     @PostMapping("/ai/compare")
     public dio.budgeting.application.ai.AiProviderComparisonService.ComparisonResult compareProviders(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestBody FinancialChatRequest request
+            @Valid @RequestBody FinancialChatRequest request
     ) {
         return aiProviderComparisonService.compare(request.message());
     }

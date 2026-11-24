@@ -19,9 +19,16 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import dio.budgeting.application.SessionAccessDeniedException;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.context.MessageSourceResolvable;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -79,7 +86,96 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         log.warn("Invalid request: {}", exception.getMessage());
 
-        return badRequest("INVALID_REQUEST", "A requisição contém parâmetros inválidos.");
+        String fieldName;
+        String correction;
+
+        if (exception instanceof MethodArgumentTypeMismatchException mismatch
+                && "userId".equals(mismatch.getName())) {
+            fieldName = "X-User-Id";
+            correction = "Informe um UUID válido.";
+        } else if (exception instanceof MethodArgumentTypeMismatchException mismatch) {
+            fieldName = mismatch.getName();
+            correction = "Informe um valor válido.";
+        } else if (exception instanceof MissingRequestHeaderException missing) {
+            fieldName = missing.getHeaderName();
+            correction = "Informe este header.";
+        } else {
+            fieldName = "requisição";
+            correction = "A requisição contém parâmetros inválidos.";
+        }
+
+        return badRequest(
+                "INVALID_REQUEST",
+                "Campos inválidos: " + fieldName + ": " + correction
+        );
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        Set<String> fieldErrors = new LinkedHashSet<>();
+
+        for (FieldError error : exception.getBindingResult().getFieldErrors()) {
+            fieldErrors.add(error.getField() + ": " + error.getDefaultMessage());
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                validationBadRequestBody(fieldErrors)
+        );
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        Set<String> fieldErrors = new LinkedHashSet<>();
+
+        exception.getParameterValidationResults().forEach(result -> {
+            String fieldName = result.getMethodParameter().getParameterName();
+
+            if (fieldName == null) {
+                fieldName = "parâmetro";
+            }
+
+            for (MessageSourceResolvable error : result.getResolvableErrors()) {
+                fieldErrors.add(fieldName + ": " + error.getDefaultMessage());
+            }
+        });
+
+        if (fieldErrors.isEmpty()) {
+            for (MessageSourceResolvable error :
+                    exception.getCrossParameterValidationResults()) {
+                fieldErrors.add("requisição: " + error.getDefaultMessage());
+            }
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                validationBadRequestBody(fieldErrors)
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(
+            ConstraintViolationException exception
+    ) {
+        Set<String> fieldErrors = new LinkedHashSet<>();
+
+        exception.getConstraintViolations().forEach(violation ->
+                fieldErrors.add(
+                        violation.getPropertyPath().toString()
+                                + ": "
+                                + violation.getMessage()
+                )
+        );
+
+        return validationBadRequest(fieldErrors);
     }
 
     @Override
@@ -201,6 +297,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "message", message,
                 "timestamp", Instant.now().toString()
         );
+    }
+
+    private ResponseEntity<Map<String, Object>> validationBadRequest(
+            Set<String> fieldErrors
+    ) {
+        String message = fieldErrors.isEmpty()
+                ? "Campos inválidos: requisição: Corrija os dados informados."
+                : "Campos inválidos: " + String.join("; ", fieldErrors);
+
+        return badRequest("INVALID_REQUEST", message);
+    }
+
+    private Map<String, Object> validationBadRequestBody(
+            Set<String> fieldErrors
+    ) {
+        String message = fieldErrors.isEmpty()
+                ? "Campos inválidos: requisição: Corrija os dados informados."
+                : "Campos inválidos: " + String.join("; ", fieldErrors);
+
+        return badRequestBody("INVALID_REQUEST", message);
     }
 
 }

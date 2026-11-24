@@ -57,7 +57,8 @@ class TransactionHttpStatusTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Valor deve ser maior que zero"));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("amount")));
     }
 
     @Test
@@ -73,7 +74,8 @@ class TransactionHttpStatusTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Valor deve ser maior que zero"));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("amount")));
     }
 
     @Test
@@ -137,5 +139,96 @@ class TransactionHttpStatusTest {
                         .contentType(MediaType.TEXT_PLAIN)
                         .content("invalid"))
                 .andExpect(status().isUnsupportedMediaType());
+    }
+
+    @Test
+    void shouldListBlankDescriptionAsValidationFieldError() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "description": "   ",
+                                  "category": "GROCERIES",
+                                  "amount": 10
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("description")));
+    }
+
+    @Test
+    void shouldListDescriptionOver255CharactersAsValidationFieldError() throws Exception {
+        var description = "a".repeat(256);
+
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"" + description + "\",\"category\":\"GROCERIES\",\"amount\":10}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("description")));
+    }
+
+    @Test
+    void shouldListMissingCategoryAsValidationFieldError() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "description": "Compra no mercado",
+                                  "amount": 10
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("category")));
+    }
+
+    @Test
+    void shouldListBlankChatMessageAsValidationFieldError() throws Exception {
+        mockMvc.perform(post("/transactions/ai/chat")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "message": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("message")));
+    }
+
+    @Test
+    void shouldListChatMessageOver2000CharactersAsValidationFieldError() throws Exception {
+        var message = "a".repeat(2001);
+
+        mockMvc.perform(post("/transactions/ai/chat")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + message + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("message")));
+    }
+
+    @Test
+    void shouldListInvalidUserIdAsValidationFieldError() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", "not-a-uuid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "description": "Compra no mercado",
+                                  "category": "GROCERIES",
+                                  "amount": 10
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("X-User-Id")));
     }
 }
