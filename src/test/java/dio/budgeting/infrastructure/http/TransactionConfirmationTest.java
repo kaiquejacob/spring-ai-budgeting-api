@@ -2,6 +2,7 @@ package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.ConversationSession;
 import dio.budgeting.application.ConversationSessionService;
+import dio.budgeting.application.ConfirmPendingTransactionUseCase;
 import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.PendingTransactionService;
 import dio.budgeting.application.PersistTransactionUseCase;
@@ -27,6 +28,7 @@ class TransactionConfirmationTest {
 
     private PendingTransactionService pendingService;
     private PersistTransactionUseCase persistUseCase;
+    private ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private ProcessTransactionAudioUseCase audioUseCase;
     private ConversationSessionService sessionService;
     private TransactionController controller;
@@ -42,6 +44,10 @@ class TransactionConfirmationTest {
                 Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
         );
         persistUseCase = mock(PersistTransactionUseCase.class);
+        confirmPendingTransactionUseCase = new ConfirmPendingTransactionUseCase(
+                pendingService,
+                persistUseCase
+        );
         audioUseCase = mock(ProcessTransactionAudioUseCase.class);
         sessionService = mock(ConversationSessionService.class);
         audioFile = mock(MultipartFile.class);
@@ -55,7 +61,7 @@ class TransactionConfirmationTest {
                 null,
                 sessionService,
                 null,
-                null,
+                confirmPendingTransactionUseCase,
                 null,
                 null,
                 null

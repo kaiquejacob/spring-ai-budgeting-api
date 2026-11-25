@@ -4,9 +4,7 @@ import dio.budgeting.application.*;
 import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
-import dio.budgeting.application.input.PersistTransactionInput;
 import dio.budgeting.domain.Category;
-import dio.budgeting.domain.TransactionSource;
 import dio.budgeting.infrastructure.http.request.CategorySuggestionRequest;
 import dio.budgeting.infrastructure.http.request.FinancialChatRequest;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
@@ -17,8 +15,8 @@ import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -54,8 +52,8 @@ public class TransactionController {
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
-    private final org.springframework.ai.chat.client.ChatClient financialChatClient;
     private final org.springframework.ai.chat.client.ChatClient financialToolChatClient;
+    private final ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private final SuggestCategoryUseCase suggestCategoryUseCase;
     private final dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase;
     private final dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService;
@@ -68,10 +66,9 @@ public class TransactionController {
             SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
             ListRecentTransactionsUseCase listRecentTransactionsUseCase,
             ConversationSessionService conversationSessionService,
-            @Qualifier("financialChatClient")
-            org.springframework.ai.chat.client.ChatClient financialChatClient,
             @Qualifier("financialToolChatClient")
             org.springframework.ai.chat.client.ChatClient financialToolChatClient,
+            ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase,
             SuggestCategoryUseCase suggestCategoryUseCase,
             dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase,
             dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService
@@ -83,8 +80,8 @@ public class TransactionController {
         this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
         this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
         this.conversationSessionService = conversationSessionService;
-        this.financialChatClient = financialChatClient;
         this.financialToolChatClient = financialToolChatClient;
+        this.confirmPendingTransactionUseCase = confirmPendingTransactionUseCase;
         this.suggestCategoryUseCase = suggestCategoryUseCase;
         this.processReceiptImageUseCase = processReceiptImageUseCase;
         this.aiProviderComparisonService = aiProviderComparisonService;
@@ -206,17 +203,7 @@ public class TransactionController {
                 ? null
                 : conversationSessionService.getOrCreate(sessionId, userId);
 
-        var proposal = pendingTransactionService.consume(token, userId);
-
-        var output = persistTransactionUseCase.execute(
-                new PersistTransactionInput(
-                        userId,
-                        proposal.description(),
-                        proposal.amountInCents(),
-                        proposal.category(),
-                        TransactionSource.AI
-                )
-        );
+        var output = confirmPendingTransactionUseCase.execute(token, userId);
 
         if (session != null
                 && token.equals(session.pendingConfirmationToken())) {
@@ -253,19 +240,9 @@ public class TransactionController {
             );
         }
 
-        var proposal = pendingTransactionService.consume(
+        var output = confirmPendingTransactionUseCase.execute(
                 token,
                 session.userId()
-        );
-
-        var output = persistTransactionUseCase.execute(
-                new PersistTransactionInput(
-                        session.userId(),
-                        proposal.description(),
-                        proposal.amountInCents(),
-                        proposal.category(),
-                        TransactionSource.AI
-                )
         );
 
         session.clearPendingProposal();
@@ -403,20 +380,6 @@ public class TransactionController {
                     exception
             );
         }
-    }
-
-    private boolean isSameProposal(
-            TransactionAiResponse pendingProposal,
-            TransactionAiResponse confirmedProposal
-    ) {
-        if (pendingProposal == null) {
-            return false;
-        }
-
-        return pendingProposal.description()
-                .equals(confirmedProposal.description())
-                && pendingProposal.amountInCents()
-                .equals(confirmedProposal.amountInCents());
     }
 
     @PostMapping("/ai/chat")

@@ -1,6 +1,5 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.ProcessReceiptImageUseCase;
 import dio.budgeting.application.ProcessTransactionAudioUseCase;
@@ -10,6 +9,7 @@ import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.persistence.repository.ConversationSessionJpaRepository;
 import dio.budgeting.infrastructure.persistence.repository.TransactionEntityRepository;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -29,7 +29,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.UUID;
@@ -199,7 +198,9 @@ class TransactionCharacterizationTest {
         var callSpec = org.mockito.Mockito.mock(ChatClient.CallResponseSpec.class);
         when(financialToolChatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(anyString())).thenReturn(requestSpec);
-        when(requestSpec.advisors(any(Consumer.class))).thenReturn(requestSpec);
+        when(requestSpec.advisors(
+                org.mockito.ArgumentMatchers.<Consumer<ChatClient.AdvisorSpec>>any()
+        )).thenReturn(requestSpec);
         when(requestSpec.tools(any(Object[].class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callSpec);
         when(callSpec.content()).thenReturn("Resposta financeira mockada.");
@@ -213,7 +214,10 @@ class TransactionCharacterizationTest {
                 .andExpect(jsonPath("$.sessionId").isNotEmpty())
                 .andReturn();
 
-        assertNotNull(jsonString(result.getResponse().getContentAsString(), "sessionId"));
+        assertNotNull(JsonPath.<String>read(
+                result.getResponse().getContentAsString(),
+                "$.sessionId"
+        ));
         assertEquals(1, sessionRepository.count());
         assertEquals(0, transactionRepository.count());
     }
@@ -224,7 +228,9 @@ class TransactionCharacterizationTest {
         var callSpec = org.mockito.Mockito.mock(ChatClient.CallResponseSpec.class);
         when(financialToolChatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(anyString())).thenReturn(requestSpec);
-        when(requestSpec.advisors(any(Consumer.class))).thenReturn(requestSpec);
+        when(requestSpec.advisors(
+                org.mockito.ArgumentMatchers.<Consumer<ChatClient.AdvisorSpec>>any()
+        )).thenReturn(requestSpec);
         when(requestSpec.tools(any(Object[].class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callSpec);
         when(callSpec.content()).thenReturn("Resposta financeira mockada.");
@@ -235,7 +241,10 @@ class TransactionCharacterizationTest {
                         .content("{\"message\":\"Qual é meu saldo?\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        var sessionId = jsonString(created.getResponse().getContentAsString(), "sessionId");
+        var sessionId = JsonPath.<String>read(
+                created.getResponse().getContentAsString(),
+                "$.sessionId"
+        );
 
         mockMvc.perform(post("/transactions/ai/chat")
                         .param("sessionId", sessionId)
@@ -316,16 +325,8 @@ class TransactionCharacterizationTest {
     }
 
     private UUID tokenFrom(String body) throws Exception {
-        var token = jsonString(body, "confirmationToken");
+        var token = JsonPath.<String>read(body, "$.confirmationToken");
         return token == null ? null : java.util.UUID.fromString(token);
-    }
-
-    private String jsonString(String body, String field) {
-        var pattern = java.util.regex.Pattern.compile(
-                "\"" + java.util.regex.Pattern.quote(field) + "\"\\s*:\\s*\"([^\"]+)\""
-        );
-        var matcher = pattern.matcher(body);
-        return matcher.find() ? matcher.group(1) : null;
     }
 
     private MockMultipartFile audioFile() {
