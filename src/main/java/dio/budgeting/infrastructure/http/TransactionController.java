@@ -1,7 +1,6 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.*;
-import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.domain.Category;
@@ -12,15 +11,12 @@ import dio.budgeting.infrastructure.http.response.CategorySuggestionResponse;
 import dio.budgeting.infrastructure.http.response.FinancialChatResponse;
 import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
@@ -42,13 +38,10 @@ import java.util.UUID;
 @Tag(name = "Transações", description = "Operações para cadastro e consulta de transações.")
 public class TransactionController {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(TransactionController.class);
-
     private final PersistTransactionUseCase persistTransactionUseCase;
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
-    private final ProcessTransactionAudioUseCase processTransactionAudioUseCase;
-    private final dio.budgeting.application.PendingTransactionService pendingTransactionService;
+    private final ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase;
+    private final RegisterPendingProposalUseCase registerPendingProposalUseCase;
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
@@ -61,8 +54,8 @@ public class TransactionController {
     public TransactionController(
             PersistTransactionUseCase persistTransactionUseCase,
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
-            ProcessTransactionAudioUseCase processTransactionAudioUseCase,
-            PendingTransactionService pendingTransactionService,
+            ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase,
+            RegisterPendingProposalUseCase registerPendingProposalUseCase,
             SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
             ListRecentTransactionsUseCase listRecentTransactionsUseCase,
             ConversationSessionService conversationSessionService,
@@ -75,8 +68,8 @@ public class TransactionController {
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
-        this.processTransactionAudioUseCase = processTransactionAudioUseCase;
-        this.pendingTransactionService = pendingTransactionService;
+        this.processTransactionAudioWithRetryUseCase = processTransactionAudioWithRetryUseCase;
+        this.registerPendingProposalUseCase = registerPendingProposalUseCase;
         this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
         this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
         this.conversationSessionService = conversationSessionService;
@@ -141,16 +134,18 @@ public class TransactionController {
     ) {
         var session = conversationSessionService.getOrCreate(sessionId, userId);
 
-        var rawAiResponse = processAudioWithRetry(file.getResource());
+        var rawAiResponse = processTransactionAudioWithRetryUseCase.execute(
+                file.getResource()
+        );
         var aiResponse = applySessionContext(rawAiResponse, session);
 
         return switch (aiResponse.intent()) {
             case CREATE_TRANSACTION -> {
-                var token = pendingTransactionService.save(userId, aiResponse);
-
-                session.setPendingProposal(aiResponse);
-                session.setPendingConfirmationToken(token);
-                conversationSessionService.save(session);
+                var token = registerPendingProposalUseCase.execute(
+                        userId,
+                        aiResponse,
+                        session
+                );
 
                 yield TransactionAiHttpResponse.pending(
                         token,
@@ -356,32 +351,6 @@ public class TransactionController {
                 "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
-    private TransactionAiResponse processAudioWithRetry(
-            org.springframework.core.io.Resource audio
-    ) {
-        try {
-            return processTransactionAudioUseCase.execute(audio);
-        } catch (ResourceAccessException exception) {
-            log.warn("Transient AI call failure. Retrying once.", exception);
-
-            try {
-                return processTransactionAudioUseCase.execute(audio);
-            } catch (ResourceAccessException retryException) {
-                throw new AiProcessingException(
-                        "AI provider is unavailable after retry.",
-                        retryException
-                );
-            }
-        } catch (AiProcessingException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new AiProcessingException(
-                    "Failed to process transaction audio.",
-                    exception
-            );
-        }
-    }
-
     @PostMapping("/ai/chat")
     @Operation(summary = "Enviar mensagem ao assistente", tags = "Assistente IA")
     @ApiResponses({
@@ -474,11 +443,11 @@ public class TransactionController {
             );
         }
 
-        var token = pendingTransactionService.save(userId, aiResponse);
-
-        session.setPendingProposal(aiResponse);
-        session.setPendingConfirmationToken(token);
-        conversationSessionService.save(session);
+        var token = registerPendingProposalUseCase.execute(
+                userId,
+                aiResponse,
+                session
+        );
 
         return TransactionAiHttpResponse.pending(
                 token,

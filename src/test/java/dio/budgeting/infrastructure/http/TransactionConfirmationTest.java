@@ -7,6 +7,8 @@ import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.PendingTransactionService;
 import dio.budgeting.application.PersistTransactionUseCase;
 import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.ProcessTransactionAudioWithRetryUseCase;
+import dio.budgeting.application.RegisterPendingProposalUseCase;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.output.TransactionOutput;
@@ -55,8 +57,8 @@ class TransactionConfirmationTest {
         controller = new TransactionController(
                 persistUseCase,
                 null,
-                audioUseCase,
-                pendingService,
+                new ProcessTransactionAudioWithRetryUseCase(audioUseCase),
+                new RegisterPendingProposalUseCase(pendingService, sessionService),
                 null,
                 null,
                 sessionService,
