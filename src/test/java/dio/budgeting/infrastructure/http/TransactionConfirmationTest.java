@@ -66,8 +66,6 @@ class TransactionConfirmationTest {
                         null,
                         sessionService
                 ),
-                null,
-                null,
                 sessionService,
                 null,
                 confirmPendingTransactionUseCase,

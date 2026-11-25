@@ -11,8 +11,6 @@ import dio.budgeting.infrastructure.http.response.CategorySuggestionResponse;
 import dio.budgeting.infrastructure.http.response.FinancialChatResponse;
 import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,10 +40,8 @@ public class TransactionController {
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private final ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase;
     private final HandleAiIntentUseCase handleAiIntentUseCase;
-    private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
-    private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
-    private final org.springframework.ai.chat.client.ChatClient financialToolChatClient;
+    private final FinancialChatUseCase financialChatUseCase;
     private final ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private final SuggestCategoryUseCase suggestCategoryUseCase;
     private final dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase;
@@ -56,11 +52,8 @@ public class TransactionController {
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
             ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase,
             HandleAiIntentUseCase handleAiIntentUseCase,
-            SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
-            ListRecentTransactionsUseCase listRecentTransactionsUseCase,
             ConversationSessionService conversationSessionService,
-            @Qualifier("financialToolChatClient")
-            org.springframework.ai.chat.client.ChatClient financialToolChatClient,
+            FinancialChatUseCase financialChatUseCase,
             ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase,
             SuggestCategoryUseCase suggestCategoryUseCase,
             dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase,
@@ -70,10 +63,8 @@ public class TransactionController {
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
         this.processTransactionAudioWithRetryUseCase = processTransactionAudioWithRetryUseCase;
         this.handleAiIntentUseCase = handleAiIntentUseCase;
-        this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
-        this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
         this.conversationSessionService = conversationSessionService;
-        this.financialToolChatClient = financialToolChatClient;
+        this.financialChatUseCase = financialChatUseCase;
         this.confirmPendingTransactionUseCase = confirmPendingTransactionUseCase;
         this.suggestCategoryUseCase = suggestCategoryUseCase;
         this.processReceiptImageUseCase = processReceiptImageUseCase;
@@ -193,38 +184,12 @@ public class TransactionController {
             @RequestParam(value = "sessionId", required = false) UUID sessionId,
             @Valid @RequestBody FinancialChatRequest request
     ) {
-        if (request.message() == null || request.message().isBlank()) {
-            throw new IllegalArgumentException(
-                    "Informe uma mensagem para o assistente."
-            );
-        }
-
-        var session = conversationSessionService.getOrCreate(
-                sessionId,
-                userId
-        );
-
-        var conversationId = userId + ":" + session.id();
-
-        var tools = new FinancialTools(
+        var result = financialChatUseCase.execute(
                 userId,
-                sumTransactionsByCategoryUseCase,
-                listTransactionsByCategoryUseCase,
-                listRecentTransactionsUseCase
+                sessionId,
+                request.message()
         );
-
-        var answer = financialToolChatClient
-                .prompt()
-                .user(request.message())
-                .advisors(advisor -> advisor.param(
-                        ChatMemory.CONVERSATION_ID,
-                        conversationId
-                ))
-                .tools(tools)
-                .call()
-                .content();
-
-        return new FinancialChatResponse(answer, session.id());
+        return new FinancialChatResponse(result.answer(), result.sessionId());
     }
 
     @PostMapping("/suggest-category")
