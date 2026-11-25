@@ -12,9 +12,14 @@ const newConversationButton = document.querySelector(
     "#new-conversation-button"
 );
 const messages = document.querySelector("#messages");
-const welcome = document.querySelector("#welcome");
+const workspace = document.querySelector("#workspace");
 const status = document.querySelector("#chat-status");
 const errorBox = document.querySelector("#chat-error");
+const attachmentPreview = document.querySelector("#attachment-preview");
+const attachmentName = document.querySelector("#attachment-name");
+const removeAttachmentButton = document.querySelector(
+    "#remove-attachment-button"
+);
 const scrollContainer = document.querySelector(".conversation-scroll");
 const suggestions = document.querySelectorAll(".suggestion");
 const uploadTriggers = document.querySelectorAll("[data-upload-trigger]");
@@ -48,14 +53,27 @@ const periodNames = {
 let sessionId = null;
 let busy = false;
 let pendingProposal = null;
+let selectedAttachment = null;
 
 function scrollToLatest() {
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
 }
 
+function updateWorkspaceState() {
+    const isEmpty = messages.childElementCount === 0;
+    workspace.classList.toggle("workspace-empty", isEmpty);
+    workspace.classList.toggle("workspace-active", !isEmpty);
+}
+
+function updateAttachmentPreview() {
+    attachmentPreview.hidden = selectedAttachment === null;
+    attachmentName.textContent = selectedAttachment?.file.name || "";
+}
+
 function updateControls() {
     input.disabled = busy;
-    sendButton.disabled = busy || !input.value.trim();
+    sendButton.disabled =
+        busy || (!input.value.trim() && selectedAttachment === null);
     newConversationButton.disabled = busy;
 
     suggestions.forEach((button) => {
@@ -63,22 +81,30 @@ function updateControls() {
     });
 
     uploadTriggers.forEach((button) => {
-        button.disabled = busy || pendingProposal !== null;
+        button.disabled =
+            busy ||
+            pendingProposal !== null ||
+            selectedAttachment !== null;
     });
+
+    removeAttachmentButton.disabled = busy;
 
     if (pendingProposal) {
         pendingProposal.button.disabled =
             busy || pendingProposal.state !== "pending";
     }
 
-    sendButton.textContent = busy ? "Aguarde…" : "Enviar";
+    sendButton.setAttribute(
+        "aria-label",
+        busy ? "Aguarde" : "Enviar mensagem"
+    );
+    sendButton.title = busy ? "Aguarde" : "Enviar mensagem";
     form.setAttribute("aria-busy", String(busy));
 }
 
 function beginOperation(message) {
     busy = true;
     clearError();
-    welcome.hidden = true;
     status.textContent = message;
     updateControls();
 }
@@ -138,6 +164,7 @@ function addMessage(author, text, userMessage = false) {
     );
 
     messages.append(article);
+    updateWorkspaceState();
     scrollToLatest();
 
     return article;
@@ -148,6 +175,7 @@ function addNotice(text) {
         element("p", "conversation-notice", text)
     );
 
+    updateWorkspaceState();
     scrollToLatest();
 }
 
@@ -455,7 +483,12 @@ async function submitMessage(event) {
 
     const message = input.value.trim();
 
-    if (busy || !message) {
+    if (busy || (!message && selectedAttachment === null)) {
+        return;
+    }
+
+    if (selectedAttachment) {
+        await submitAttachment(message);
         return;
     }
 
@@ -511,43 +544,62 @@ function validateFile(file, kind) {
     }
 }
 
-async function uploadFile(file, kind) {
-    if (busy || pendingProposal) {
-        return;
-    }
-
-    clearError();
-
-    try {
-        validateFile(file, kind);
-    } catch (error) {
-        showError(errorMessage(error));
-        return;
-    }
-
+async function submitAttachment(message) {
+    const attachment = selectedAttachment;
+    const { file, kind } = attachment;
     const isReceipt = kind === "receipt";
     const origin = isReceipt ? "Recibo" : "Áudio";
+    let messageArticle = null;
+    let messageDelivered = false;
 
     beginOperation(
-        isReceipt
-            ? "Analisando recibo…"
-            : "Transcrevendo e interpretando áudio…"
+        message
+            ? "Enviando mensagem e analisando arquivo…"
+            : isReceipt
+                ? "Analisando recibo…"
+                : "Transcrevendo e interpretando áudio…"
     );
 
-    const userArticle = addMessage(
+    if (message) {
+        messageArticle = addMessage("Você", message, true);
+        input.value = "";
+    }
+
+    const attachmentArticle = addMessage(
         "Você",
         `${origin} enviado: ${file.name}`,
         true
     );
+    updateControls();
 
     try {
+        if (message) {
+            const chatResponse = await sendChatMessage(message, sessionId);
+            updateSession(chatResponse.sessionId);
+            addMessage("Assistente", chatResponse.answer);
+            messageDelivered = true;
+        }
+
         const data = isReceipt
             ? await sendReceipt(file, sessionId)
             : await sendAudio(file, sessionId);
 
         renderFileResponse(data, origin);
+        selectedAttachment = null;
+        updateAttachmentPreview();
     } catch (error) {
-        userArticle.append(
+        if (messageArticle && !messageDelivered) {
+            messageArticle.append(
+                element(
+                    "span",
+                    "message-delivery-status",
+                    "Resposta não recebida."
+                )
+            );
+            input.value = message;
+        }
+
+        attachmentArticle.append(
             element(
                 "span",
                 "message-delivery-status",
@@ -575,7 +627,10 @@ input.addEventListener("keydown", (event) => {
     ) {
         event.preventDefault();
 
-        if (!busy && input.value.trim()) {
+        if (
+            !busy &&
+            (input.value.trim() || selectedAttachment !== null)
+        ) {
             form.requestSubmit();
         }
     }
@@ -587,10 +642,8 @@ suggestions.forEach((button) => {
             return;
         }
 
-        input.value = button
-            .querySelector(".suggestion-description")
-            .textContent
-            .trim();
+        const prompt = button.querySelector(".suggestion-description");
+        input.value = prompt.dataset.prompt || prompt.textContent.trim();
 
         updateControls();
         input.focus();
@@ -614,10 +667,30 @@ Object.entries(fileInputs).forEach(([kind, fileInput]) => {
 
         fileInput.value = "";
 
-        if (file) {
-            uploadFile(file, kind);
+        if (!file || busy || pendingProposal || selectedAttachment) {
+            return;
+        }
+
+        try {
+            validateFile(file, kind);
+            selectedAttachment = { file, kind };
+            updateAttachmentPreview();
+            clearError();
+            updateControls();
+        } catch (error) {
+            showError(errorMessage(error));
         }
     });
+});
+
+removeAttachmentButton.addEventListener("click", () => {
+    if (busy || selectedAttachment === null) {
+        return;
+    }
+
+    selectedAttachment = null;
+    updateAttachmentPreview();
+    updateControls();
 });
 
 newConversationButton.addEventListener("click", () => {
@@ -639,9 +712,9 @@ newConversationButton.addEventListener("click", () => {
 
     sessionId = null;
     pendingProposal = null;
+    selectedAttachment = null;
 
     messages.replaceChildren();
-    welcome.hidden = false;
     input.value = "";
     status.textContent = "";
 
@@ -649,6 +722,8 @@ newConversationButton.addEventListener("click", () => {
         fileInput.value = "";
     });
 
+    updateAttachmentPreview();
+    updateWorkspaceState();
     clearError();
     updateControls();
 
@@ -656,4 +731,6 @@ newConversationButton.addEventListener("click", () => {
     input.focus();
 });
 
+updateWorkspaceState();
+updateAttachmentPreview();
 updateControls();

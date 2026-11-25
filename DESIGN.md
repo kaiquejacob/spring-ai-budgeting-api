@@ -1,60 +1,34 @@
 # Design system
 
+## Direção visual
+
+- Interface desktop de chat inspirada no app do Perplexity: base escura neutra, hierarquia discreta e coluna única.
+- Sidebar de 240 px, sem borda vertical, com nova conversa como item de navegação e chip do usuário no rodapé.
+- Estado vazio centralizado, deslocado cerca de 5% para cima; símbolo financeiro inline, título, compositor e sugestões.
+- Mensagens, propostas e compositor compartilham largura máxima de 672 px.
+- Paleta inspirada no app do Perplexity; o accent lime permanece restrito a foco, item ativo e indicadores.
+
 ## Tokens
 
-| Token | Valor | Uso |
+| Grupo | Tokens | Uso |
 |---|---|---|
-| `--background` | `#08090a` | Fundo principal |
-| `--sidebar` | `#0b0c0e` | Barra lateral |
-| `--surface` | `#101113` | Superfícies e cartões |
-| `--input` | `#131418` | Campos e bolhas |
-| `--surface-hover` | `#181a1e` | Realce ao passar o mouse |
-| `--border` | `#23252a` | Divisórias |
-| `--border-hover` | `#34373d` | Borda interativa |
-| `--border-input` | `#62666d` | Borda do compositor e campos |
-| `--text` | `#f7f8f8` | Texto principal |
-| `--text-secondary` | `#8a8f98` | Texto de apoio |
-| `--accent` | `#e4f222` | Foco, estado ativo e indicadores |
-| `--positive` | `#4ade80` | Valores positivos e status |
-| `--negative` | `#f87171` | Valores negativos e status |
-| `--success-text` | `#86efac` | Texto de sucesso |
-| `--success-background` | `rgba(74,222,128,0.08)` | Fundo de sucesso |
-| `--success-border` | `rgba(74,222,128,0.30)` | Borda de sucesso |
-| `--error-text` | `#fca5a5` | Texto de erro |
-| `--error-background` | `rgba(248,113,113,0.08)` | Fundo de erro |
-| `--error-border` | `rgba(248,113,113,0.30)` | Borda de erro |
-| `--primary` | `#f7f8f8` | Fundo do botão primário |
-| `--primary-text` | `#08090a` | Texto do botão primário |
-| `--primary-hover` | `#e3e4e6` | Hover do botão primário |
-| `--primary-disabled-background` | `#23252a` | Fundo primário desabilitado |
-| `--primary-disabled-text` | `#8a8f98` | Texto primário desabilitado |
-| `--radius-small` / `--radius-sm` | `6px` | Controles |
-| `--radius-medium` / `--radius-md` / `--radius-lg` | `12px` | Cartões e painéis |
-| `--font-sans` | Inter e stack do sistema | Texto geral |
-| `--font-mono` | JetBrains Mono, ui-monospace, monospace | Valores numéricos |
-| `--duration-fast` | `150ms` | Interações rápidas |
-| `--duration-base` | `200ms` | Interações comuns |
-| `--duration-slow` | `280ms` | Interações mais lentas |
-| `--ease-out` | `cubic-bezier(0.16, 1, 0.3, 1)` | Desaceleração |
-| `--focus-ring` | `var(--accent)` | Indicador de foco |
+| Superfícies | `--background`, `--sidebar`, `--surface`, `--input`, `--surface-hover` | Fundo e camadas |
+| Bordas | `--border`, `--border-input`, `--border-subtle`, `--border-hover` | Contornos e divisórias |
+| Texto e ícones | `--text`, `--text-secondary`, `--text-muted`, `--icon` | Hierarquia e ícones |
+| Destaque | `--accent`, `--focus-ring`, `--focus-halo` | Foco, item ativo e indicadores |
+| Ação | `--primary`, `--primary-hover`, `--primary-text`, `--primary-disabled-*` | Ações e estado desabilitado |
+| Estado | `--positive`, `--negative`, `--success-*`, `--error-*` | Status em superfícies escuras neutras |
+| Sombras | `--composer-highlight`, `--composer-shadow` | Brilho interno e sombra do compositor |
+| Forma e tipo | `--radius-*`, `--font-sans`, `--font-mono` | Raios e tipografia |
+| Movimento | `--duration-*`, `--ease-out` | Feedback funcional |
 
-## Regras
+## Medidas e regras
 
-- Usar o accent apenas em foco, item ativo e indicadores.
-- O botão primário é uma pílula branca com texto escuro.
-- Positivo e negativo são exclusivos de valores e status.
-- Exibir números em fonte mono com algarismos tabulares.
-- Animações de UI frequente duram de 150 a 280 ms; mensagens, até 200 ms.
-- Respeitar sempre `prefers-reduced-motion`.
-
-## Decisões de design
-
-- Layout de chat inspirado no Perplexity: sidebar estreita e coluna única.
-- Tela inicial inspirada no Revolut, com cartão escuro em CSS.
-- Fase 7: cena de scroll inspirada no Mercury, com alternativa estática.
-
-## Evitar
-
-- Cartões para todo conteúdo.
-- Gradientes decorativos.
-- Animações em toda interação.
+- Sidebar: 240 px; itens: 38 px de altura, ícones de 18 px e intervalo de 12 px.
+- Símbolo da marca: 20 px na sidebar e 24 px no estado vazio; SVG inline, traço de 1.5 px.
+- Título vazio: 26 px, peso 400, line-height 1.25; 32 px após o símbolo e 64 px até o compositor.
+- Compositor: largura máxima de 672 px, altura mínima de 120 px, raio de 18 px e padding `22px 12px 12px 20px`.
+- Botões do compositor: 32 px; ícones: 18 px. Sugestões: 34 px de altura e texto de 14 px.
+- Usar `currentColor` nos SVGs e centralizar cores em `tokens.css`.
+- Valores monetários usam fonte mono com algarismos tabulares; rótulos usam caixa normal.
+- Respeitar foco visível e `prefers-reduced-motion`; evitar cartões e animações decorativas em excesso.
