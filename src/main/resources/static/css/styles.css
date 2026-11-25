@@ -36,7 +36,7 @@ a {
 button,
 a,
 textarea {
-    -webkit-tap-highlight-color: var(--transparent);
+    -webkit-tap-highlight-color: transparent;
 }
 
 :focus-visible {
@@ -81,8 +81,8 @@ textarea {
     height: 40px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--accent);
+    border-radius: var(--radius-small);
+    color: var(--text);
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -126,7 +126,7 @@ textarea {
     gap: 10px;
     min-height: 44px;
     padding: 10px 16px;
-    border: 1px solid var(--transparent);
+    border: 1px solid transparent;
     border-radius: var(--radius-small);
     color: var(--text);
     font-size: 13px;
@@ -152,6 +152,8 @@ textarea {
 .button-primary {
     background: var(--primary);
     border-color: var(--primary);
+    border-radius: 999px;
+    color: var(--primary-text);
 }
 
 .button-primary:not(:disabled):hover {
@@ -161,7 +163,7 @@ textarea {
 
 .button-primary:disabled {
     background: var(--primary-disabled-background);
-    border-color: var(--primary-disabled-border);
+    border-color: transparent;
     color: var(--primary-disabled-text);
 }
 
@@ -206,7 +208,7 @@ textarea {
     justify-content: space-between;
     width: 100%;
     padding: 11px 12px;
-    background: var(--transparent);
+    background: transparent;
     color: var(--text-secondary);
 }
 
@@ -434,7 +436,7 @@ textarea {
     padding: 3px 8px;
     background: var(--input);
     border: 1px solid var(--border);
-    border-radius: 5px;
+    border-radius: var(--radius-small);
     color: var(--text-secondary);
     font-size: 10px;
 }
@@ -447,6 +449,7 @@ textarea {
 
 .transaction-amount {
     margin: 0;
+    font-family: var(--font-mono);
     font-size: 32px;
     font-weight: 600;
     letter-spacing: -0.04em;
@@ -558,7 +561,7 @@ textarea {
     gap: 12px;
     padding: 10px;
     background: var(--input);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-input);
     border-radius: var(--radius-medium);
 }
 
@@ -574,7 +577,7 @@ textarea {
     max-height: 160px;
     padding: 9px;
     resize: vertical;
-    background: var(--transparent);
+    background: transparent;
     border: 0;
     color: var(--text);
 }
