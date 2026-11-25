@@ -41,7 +41,7 @@ public class TransactionController {
     private final PersistTransactionUseCase persistTransactionUseCase;
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private final ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase;
-    private final RegisterPendingProposalUseCase registerPendingProposalUseCase;
+    private final HandleAiIntentUseCase handleAiIntentUseCase;
     private final SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ConversationSessionService conversationSessionService;
@@ -55,7 +55,7 @@ public class TransactionController {
             PersistTransactionUseCase persistTransactionUseCase,
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
             ProcessTransactionAudioWithRetryUseCase processTransactionAudioWithRetryUseCase,
-            RegisterPendingProposalUseCase registerPendingProposalUseCase,
+            HandleAiIntentUseCase handleAiIntentUseCase,
             SumTransactionsByCategoryUseCase sumTransactionsByCategoryUseCase,
             ListRecentTransactionsUseCase listRecentTransactionsUseCase,
             ConversationSessionService conversationSessionService,
@@ -69,7 +69,7 @@ public class TransactionController {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
         this.processTransactionAudioWithRetryUseCase = processTransactionAudioWithRetryUseCase;
-        this.registerPendingProposalUseCase = registerPendingProposalUseCase;
+        this.handleAiIntentUseCase = handleAiIntentUseCase;
         this.sumTransactionsByCategoryUseCase = sumTransactionsByCategoryUseCase;
         this.listRecentTransactionsUseCase = listRecentTransactionsUseCase;
         this.conversationSessionService = conversationSessionService;
@@ -137,47 +137,12 @@ public class TransactionController {
         var rawAiResponse = processTransactionAudioWithRetryUseCase.execute(
                 file.getResource()
         );
-        var aiResponse = applySessionContext(rawAiResponse, session);
-
-        return switch (aiResponse.intent()) {
-            case CREATE_TRANSACTION -> {
-                var token = registerPendingProposalUseCase.execute(
-                        userId,
-                        aiResponse,
-                        session
-                );
-
-                yield TransactionAiHttpResponse.pending(
-                        token,
-                        aiResponse,
-                        session.id()
-                );
-            }
-            case CONFIRM_PENDING -> confirmPendingProposal(session);
-            case LIST_TRANSACTIONS -> handleListByCategory(
-                    userId,
-                    aiResponse,
-                    session
-            );
-            case SUM_TRANSACTIONS_BY_CATEGORY -> handleSummary(
-                    userId,
-                    aiResponse,
-                    session
-            );
-            case LIST_RECENT_TRANSACTIONS -> {
-                var transactions = listRecentTransactionsUseCase.execute(userId);
-
-                yield TransactionAiHttpResponse.recent(
-                        transactions,
-                        session.id()
-                );
-            }
-            case CLARIFICATION_NEEDED, UNSUPPORTED_REQUEST ->
-                    TransactionAiHttpResponse.clarification(
-                            aiResponse,
-                            session.id()
-                    );
-        };
+        var result = handleAiIntentUseCase.execute(
+                userId,
+                rawAiResponse,
+                session
+        );
+        return TransactionAiHttpResponse.from(result);
     }
 
     @PostMapping("/{token}/confirm")
@@ -213,142 +178,6 @@ public class TransactionController {
                         session == null ? null : session.id()
                 )
         );
-    }
-
-    private TransactionAiHttpResponse confirmPendingProposal(
-            ConversationSession session
-    ) {
-        var token = session.pendingConfirmationToken();
-
-        if (session.pendingProposal() == null || token == null) {
-            return TransactionAiHttpResponse.clarification(
-                    new TransactionAiResponse(
-                            TransactionIntent.CLARIFICATION_NEEDED,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."
-                    ),
-                    session.id()
-            );
-        }
-
-        var output = confirmPendingTransactionUseCase.execute(
-                token,
-                session.userId()
-        );
-
-        session.clearPendingProposal();
-        conversationSessionService.save(session);
-
-        return TransactionAiHttpResponse.created(
-                output,
-                session.id()
-        );
-    }
-
-    private TransactionAiHttpResponse handleListByCategory(
-            UUID userId,
-            TransactionAiResponse aiResponse,
-            ConversationSession session
-    ) {
-        var category = aiResponse.category();
-
-        if (category == null) {
-            return TransactionAiHttpResponse.clarification(
-                    new TransactionAiResponse(
-                            TransactionIntent.CLARIFICATION_NEEDED,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "Informe a categoria para listar as transações.",
-                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."),
-                    session.id()
-            );
-        }
-
-        session.setLastCategory(category);
-        conversationSessionService.save(session);
-
-        var transactions = listTransactionsByCategoryUseCase.execute(
-                userId,
-                category
-        );
-
-        return TransactionAiHttpResponse.listed(
-                transactions,
-                session.id()
-        );
-    }
-
-    private TransactionAiHttpResponse handleSummary(
-            UUID userId,
-            TransactionAiResponse aiResponse,
-            ConversationSession session
-    ) {
-        var category = aiResponse.category();
-        var period = aiResponse.period();
-
-        if (category == null || period == null) {
-            return TransactionAiHttpResponse.clarification(
-                    new TransactionAiResponse(
-                            TransactionIntent.CLARIFICATION_NEEDED,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "Informe a categoria e o período para calcular o total.",
-                            "Não há uma proposta válida para confirmar. Gere uma nova proposta."),
-                    session.id()
-            );
-        }
-
-        session.setLastCategory(category);
-        session.setLastPeriod(period);
-        conversationSessionService.save(session);
-
-        var total = sumTransactionsByCategoryUseCase.execute(
-                userId,
-                category,
-                period
-        );
-
-        return TransactionAiHttpResponse.summarized(
-                category,
-                period,
-                total,
-                session.id()
-        );
-    }
-
-    private TransactionAiResponse applySessionContext(
-            TransactionAiResponse aiResponse,
-            ConversationSession session
-    ) {
-        if (aiResponse.intent() != TransactionIntent.SUM_TRANSACTIONS_BY_CATEGORY
-                && aiResponse.intent() != TransactionIntent.LIST_TRANSACTIONS) {
-            return aiResponse;
-        }
-
-        var category = aiResponse.category() != null
-                ? aiResponse.category()
-                : session.lastCategory();
-
-        var period = aiResponse.period() != null
-                ? aiResponse.period()
-                : session.lastPeriod();
-
-        return new TransactionAiResponse(
-                aiResponse.intent(),
-                aiResponse.description(),
-                aiResponse.amountInCents(),
-                category,
-                period,
-                aiResponse.messageToUser(),
-                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
     }
 
     @PostMapping("/ai/chat")
@@ -443,17 +272,12 @@ public class TransactionController {
             );
         }
 
-        var token = registerPendingProposalUseCase.execute(
+        var result = handleAiIntentUseCase.execute(
                 userId,
                 aiResponse,
                 session
         );
-
-        return TransactionAiHttpResponse.pending(
-                token,
-                aiResponse,
-                session.id()
-        );
+        return TransactionAiHttpResponse.from(result);
     }
 
     @PostMapping("/ai/compare")

@@ -3,12 +3,12 @@ package dio.budgeting.infrastructure.http;
 import dio.budgeting.application.ConversationSession;
 import dio.budgeting.application.ConversationSessionService;
 import dio.budgeting.application.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.HandleAiIntentUseCase;
 import dio.budgeting.application.PendingTransactionException;
 import dio.budgeting.application.PendingTransactionService;
 import dio.budgeting.application.PersistTransactionUseCase;
 import dio.budgeting.application.ProcessTransactionAudioUseCase;
 import dio.budgeting.application.ProcessTransactionAudioWithRetryUseCase;
-import dio.budgeting.application.RegisterPendingProposalUseCase;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.output.TransactionOutput;
@@ -58,7 +58,14 @@ class TransactionConfirmationTest {
                 persistUseCase,
                 null,
                 new ProcessTransactionAudioWithRetryUseCase(audioUseCase),
-                new RegisterPendingProposalUseCase(pendingService, sessionService),
+                new HandleAiIntentUseCase(
+                        null,
+                        confirmPendingTransactionUseCase,
+                        null,
+                        null,
+                        null,
+                        sessionService
+                ),
                 null,
                 null,
                 sessionService,
