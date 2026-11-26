@@ -1,20 +1,26 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.ConversationSession;
-import dio.budgeting.application.ConversationSessionService;
-import dio.budgeting.application.PendingTransactionException;
-import dio.budgeting.application.PendingTransactionService;
-import dio.budgeting.application.PersistTransactionUseCase;
-import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.conversation.ConversationSession;
+import dio.budgeting.application.conversation.ConversationSessionService;
+import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.assistant.HandleAiIntentUseCase;
+import dio.budgeting.application.proposal.PendingTransactionException;
+import dio.budgeting.application.proposal.PendingTransactionService;
+import dio.budgeting.application.transaction.PersistTransactionUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioWithRetryUseCase;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
-import dio.budgeting.application.output.TransactionOutput;
+import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,6 +30,7 @@ class TransactionConfirmationTest {
 
     private PendingTransactionService pendingService;
     private PersistTransactionUseCase persistUseCase;
+    private ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private ProcessTransactionAudioUseCase audioUseCase;
     private ConversationSessionService sessionService;
     private TransactionController controller;
@@ -35,8 +42,14 @@ class TransactionConfirmationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        pendingService = new PendingTransactionService();
+        pendingService = new PendingTransactionService(
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
         persistUseCase = mock(PersistTransactionUseCase.class);
+        confirmPendingTransactionUseCase = new ConfirmPendingTransactionUseCase(
+                pendingService,
+                persistUseCase
+        );
         audioUseCase = mock(ProcessTransactionAudioUseCase.class);
         sessionService = mock(ConversationSessionService.class);
         audioFile = mock(MultipartFile.class);
@@ -44,20 +57,29 @@ class TransactionConfirmationTest {
         controller = new TransactionController(
                 persistUseCase,
                 null,
-                audioUseCase,
-                pendingService,
-                null,
-                null,
+                new ProcessTransactionAudioWithRetryUseCase(audioUseCase),
+                new HandleAiIntentUseCase(
+                        null,
+                        confirmPendingTransactionUseCase,
+                        null,
+                        null,
+                        null,
+                        sessionService
+                ),
                 sessionService,
                 null,
-                null,
+                confirmPendingTransactionUseCase,
                 null,
                 null,
                 null
         );
 
         userId = UUID.randomUUID();
-        session = new ConversationSession(UUID.randomUUID(), userId);
+        session = new ConversationSession(
+                UUID.randomUUID(),
+                userId,
+                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+        );
 
         var proposal = new TransactionAiResponse(
                 TransactionIntent.CREATE_TRANSACTION,

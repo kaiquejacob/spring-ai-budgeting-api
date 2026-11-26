@@ -86,6 +86,8 @@ bin/
 # AI Assistants & Agents (Local cache)
 .agents/
 .cursor/
+.github/skills/
+.github/copilot-instructions.md
 
 # =============================================================================
 # Operating System Files

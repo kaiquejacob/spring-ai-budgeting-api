@@ -24,7 +24,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
 
     implementation platform("org.springframework.ai:spring-ai-bom:2.0.0-M4")
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
@@ -34,10 +36,13 @@ dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
 
 tasks.named('test') {
+    jvmArgs '-Duser.timezone=UTC'
     useJUnitPlatform {
         excludeTags 'groq-evaluation'
     }

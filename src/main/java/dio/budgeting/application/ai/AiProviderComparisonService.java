@@ -1,6 +1,6 @@
 package dio.budgeting.application.ai;
 
-import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

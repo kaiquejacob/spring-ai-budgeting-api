@@ -3,6 +3,7 @@ package dio.budgeting.domain;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.UUID;
 
 @Getter
@@ -20,9 +21,11 @@ public class Transaction {
             String description,
             long amount,
             Category category,
-            TransactionSource source, UUID userId
+            TransactionSource source,
+            UUID userId,
+            Clock clock
     ) {
-        this(new TransactionId(), description, amount, category, source, Instant.now(), userId);
+        this(new TransactionId(), description, amount, category, source, clock.instant(), userId);
     }
 
     public Transaction(

@@ -3,87 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <meta
-            name="description"
-            content="Assistente de gestão financeira."
-    >
+    <meta name="description" content="Assistente de gestão financeira.">
 
     <title>Gestão Financeira | Assistente</title>
 
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23dbdee3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9.25'/%3E%3Cpath d='M8.5 10.5v3M12 8v8M15.5 9.5v5'/%3E%3C/svg%3E">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+    >
+    <link rel="stylesheet" href="./css/tokens.css">
     <link rel="stylesheet" href="./css/styles.css">
 </head>
 
 <body>
 <div class="app-shell">
-    <aside class="sidebar" aria-label="Painel de ações">
+    <aside class="sidebar" aria-label="Navegação principal">
         <a class="brand" href="./" aria-label="Gestão Financeira — início">
-            <span class="brand-symbol" aria-hidden="true">GF</span>
-
-            <span class="brand-text">
-                <span class="brand-name">Gestão Financeira</span>
-                <span class="brand-description">Assistente com IA</span>
+            <span class="brand-symbol" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.25"/><path d="M8.5 10.5v3M12 8v8M15.5 9.5v5"/></svg>
             </span>
+            <span class="brand-name">Gestão Financeira</span>
         </a>
 
         <button
                 id="new-conversation-button"
-                class="button button-secondary new-conversation"
+                class="navigation-item new-conversation"
                 type="button"
         >
-            <span aria-hidden="true">+</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
             Nova conversa
         </button>
 
-        <div class="sidebar-section">
-            <p class="section-label">Área de trabalho</p>
-
-            <div class="navigation-item navigation-item-active">
+        <nav class="sidebar-navigation" aria-label="Conversas">
+            <button
+                    class="navigation-item navigation-item-active"
+                    type="button"
+                    aria-current="page"
+            >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"/>
+                </svg>
+                <span>Assistente</span>
                 <span class="active-indicator" aria-hidden="true"></span>
-                Assistente financeiro
-            </div>
-        </div>
-
-        <div class="sidebar-section">
-            <p class="section-label">Documentos e áudio</p>
-
-            <div class="sidebar-actions">
-                <button
-                        class="button button-sidebar"
-                        type="button"
-                        data-upload-trigger="receipt"
-                >
-                    Enviar recibo
-                    <span class="file-format">JPG / PNG</span>
-                </button>
-
-                <button
-                        class="button button-sidebar"
-                        type="button"
-                        data-upload-trigger="audio"
-                >
-                    Enviar áudio
-                    <span class="file-format">MP3 / M4A / WAV</span>
-                </button>
-            </div>
-        </div>
+            </button>
+        </nav>
 
         <div class="sidebar-footer">
-            <span class="demo-indicator" aria-hidden="true"></span>
-            Demonstração local · sem login
+            <div class="user-chip">
+                <span class="user-avatar" aria-hidden="true">D</span>
+                <span class="user-details">
+                    <span class="user-name">Demonstração local</span>
+                    <span class="user-caption">Sem login</span>
+                </span>
+            </div>
         </div>
     </aside>
 
-    <main class="workspace">
-        <header class="workspace-header">
-            <div>
-                <p class="section-label">Seu espaço financeiro</p>
-                <h1>Assistente financeiro</h1>
-            </div>
-
-            <span class="header-tag">Ambiente local</span>
-        </header>
-
+    <main id="workspace" class="workspace workspace-empty">
         <div class="conversation-scroll">
             <div class="conversation-content">
                 <section
@@ -91,41 +73,119 @@
                         class="welcome"
                         aria-labelledby="welcome-title"
                 >
-                    <span class="eyebrow">
-                        Clareza para suas movimentações
-                    </span>
-
-                    <h2 id="welcome-title">
-                        Suas finanças, em uma conversa.
-                    </h2>
-
-                    <p class="welcome-description">
-                        Consulte movimentações ou envie um áudio ou recibo.
-                        Confira os dados extraídos antes de confirmar
-                        qualquer registro.
-                    </p>
-
-                    <div class="suggestions">
-                        <button class="suggestion" type="button">
-                            <span class="suggestion-title">
-                                Consultar gastos
-                            </span>
-
-                            <span class="suggestion-description">
-                                Quanto gastei com mercado este mês?
-                            </span>
-                        </button>
-
-                        <button class="suggestion" type="button">
-                            <span class="suggestion-title">
-                                Ver movimentações
-                            </span>
-
-                            <span class="suggestion-description">
-                                Mostre minhas últimas transações.
-                            </span>
-                        </button>
+                    <div class="welcome-heading">
+                        <span class="brand-symbol welcome-mark" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.25"/><path d="M8.5 10.5v3M12 8v8M15.5 9.5v5"/></svg>
+                        </span>
+                        <h1 id="welcome-title">
+                            O que você quer registrar ou consultar?
+                        </h1>
                     </div>
+
+                    <footer class="composer-area">
+                        <p id="chat-status" class="chat-status" role="status"></p>
+                        <p id="chat-error" class="chat-error" role="alert" hidden></p>
+
+                        <input
+                                id="receipt-input"
+                                type="file"
+                                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                                hidden
+                        >
+                        <input
+                                id="audio-input"
+                                type="file"
+                                accept=".mp3,.m4a,.wav"
+                                hidden
+                        >
+
+                        <form id="chat-form" class="composer">
+                            <label class="visually-hidden" for="message-input">
+                                Sua mensagem para o assistente
+                            </label>
+                            <textarea
+                                    id="message-input"
+                                    rows="2"
+                                    maxlength="2000"
+                                    placeholder="Pergunte ou descreva uma transação..."
+                                    aria-label="Mensagem para o assistente"
+                            ></textarea>
+
+                            <div id="attachment-preview" class="attachment-preview" hidden>
+                                <span class="attachment-indicator" aria-hidden="true"></span>
+                                <span id="attachment-name" class="attachment-name"></span>
+                                <button
+                                        id="remove-attachment-button"
+                                        class="icon-button remove-attachment-button"
+                                        type="button"
+                                        aria-label="Remover arquivo anexado"
+                                        title="Remover arquivo"
+                                >
+                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                                        <path d="m18 6-12 12M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="composer-actions">
+                                <div class="composer-attachments">
+                                    <button
+                                            class="icon-button"
+                                            type="button"
+                                            data-upload-trigger="receipt"
+                                            aria-label="Anexar recibo (jpg/png, até 9 MB)"
+                                            title="Anexar recibo (jpg/png, até 9 MB)"
+                                    >
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                                            <path d="M21.4 11.1 12.2 20.3a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>
+                                        </svg>
+                                    </button>
+                                    <button
+                                            class="icon-button"
+                                            type="button"
+                                            data-upload-trigger="audio"
+                                            aria-label="Anexar áudio (mp3/m4a/wav, até 9 MB)"
+                                            title="Anexar áudio (mp3/m4a/wav, até 9 MB)"
+                                    >
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                                            <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                            <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <button
+                                        id="send-button"
+                                        class="icon-button send-button"
+                                        type="submit"
+                                        aria-label="Enviar mensagem"
+                                        title="Enviar mensagem"
+                                        disabled
+                                >
+                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 19V5m-7 7 7-7 7 7"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="suggestions" aria-label="Sugestões">
+                            <button class="suggestion" type="button">
+                                <span
+                                        class="suggestion-description"
+                                        data-prompt="Quero registrar um gasto."
+                                >Registrar um gasto</span>
+                            </button>
+                            <button class="suggestion" type="button">
+                                <span class="suggestion-description">Quanto gastei este mês?</span>
+                            </button>
+                            <button class="suggestion" type="button">
+                                <span
+                                        class="suggestion-description"
+                                        data-prompt="Mostre minhas últimas transações."
+                                >Últimas transações</span>
+                            </button>
+                        </div>
+                    </footer>
                 </section>
 
                 <section
@@ -138,91 +198,9 @@
                 ></section>
             </div>
         </div>
-
-        <footer class="composer-area">
-            <div class="composer-container">
-                <p
-                        id="chat-status"
-                        class="chat-status"
-                        role="status"
-                ></p>
-
-                <p
-                        id="chat-error"
-                        class="chat-error"
-                        role="alert"
-                        hidden
-                ></p>
-
-                <div class="composer-tools">
-                    <button
-                            class="button button-secondary attachment-button"
-                            type="button"
-                            data-upload-trigger="receipt"
-                    >
-                        Anexar recibo
-                    </button>
-
-                    <button
-                            class="button button-secondary attachment-button"
-                            type="button"
-                            data-upload-trigger="audio"
-                    >
-                        Anexar áudio
-                    </button>
-
-                    <span class="upload-hint">
-                        Até 9 MB por arquivo
-                    </span>
-                </div>
-
-                <input
-                        id="receipt-input"
-                        type="file"
-                        accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                        hidden
-                >
-
-                <input
-                        id="audio-input"
-                        type="file"
-                        accept=".mp3,.m4a,.wav"
-                        hidden
-                >
-
-                <form id="chat-form" class="composer">
-                    <label class="visually-hidden" for="message-input">
-                        Sua mensagem para o assistente
-                    </label>
-
-                    <textarea
-                            id="message-input"
-                            rows="2"
-                            maxlength="2000"
-                            placeholder="Digite sua mensagem..."
-                            aria-describedby="composer-help"
-                            required
-                    ></textarea>
-
-                    <button
-                            id="send-button"
-                            class="button button-primary send-button"
-                            type="submit"
-                            disabled
-                    >
-                        Enviar
-                    </button>
-                </form>
-
-                <p class="composer-help" id="composer-help">
-                    Enter para enviar · Shift + Enter para uma nova linha.
-                    Áudios e recibos são enviados para análise por IA.
-                </p>
-            </div>
-        </footer>
     </main>
 </div>
 
-<script type="module" src="./js/app.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

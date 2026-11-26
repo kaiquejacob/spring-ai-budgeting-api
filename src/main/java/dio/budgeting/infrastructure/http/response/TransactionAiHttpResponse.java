@@ -1,7 +1,8 @@
 package dio.budgeting.infrastructure.http.response;
 
+import dio.budgeting.application.assistant.AiIntentResult;
 import dio.budgeting.application.ai.TransactionAiResponse;
-import dio.budgeting.application.output.TransactionOutput;
+import dio.budgeting.application.transaction.TransactionOutput;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +20,38 @@ public record TransactionAiHttpResponse(
         Double totalAmount,
         List<TransactionResponse> recentTransactions
 ) {
+
+    public static TransactionAiHttpResponse from(AiIntentResult result) {
+        return switch (result) {
+            case AiIntentResult.Pending pending -> pending(
+                    pending.token(),
+                    pending.proposal(),
+                    pending.sessionId()
+            );
+            case AiIntentResult.Created created -> created(
+                    created.output(),
+                    created.sessionId()
+            );
+            case AiIntentResult.Clarification clarification -> clarification(
+                    clarification.response(),
+                    clarification.sessionId()
+            );
+            case AiIntentResult.Listed listed -> listed(
+                    listed.transactions(),
+                    listed.sessionId()
+            );
+            case AiIntentResult.Summarized summarized -> summarized(
+                    summarized.category(),
+                    summarized.period(),
+                    summarized.totalInCents(),
+                    summarized.sessionId()
+            );
+            case AiIntentResult.Recent recent -> recent(
+                    recent.transactions(),
+                    recent.sessionId()
+            );
+        };
+    }
 
     public static TransactionAiHttpResponse pending(
             UUID token,

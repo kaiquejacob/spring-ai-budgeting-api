@@ -6,6 +6,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.Clock;
 import java.time.temporal.TemporalAdjusters;
 
 public record TransactionPeriod(
@@ -13,23 +14,23 @@ public record TransactionPeriod(
         Instant endDate
 ) {
 
-    private static final ZoneId ZONE = ZoneId.systemDefault();
-
     public static TransactionPeriod from(
-            TransactionAiResponse.AiPeriod period
+            TransactionAiResponse.AiPeriod period,
+            Clock clock
     ) {
-        var today = LocalDate.now(ZONE);
+        var zone = clock.getZone();
+        var today = LocalDate.now(clock);
 
         return switch (period) {
             case TODAY -> new TransactionPeriod(
-                    startOfDay(today),
-                    endOfDay(today)
+                    startOfDay(today, zone),
+                    endOfDay(today, zone)
             );
             case YESTERDAY -> {
                 var yesterday = today.minusDays(1);
                 yield new TransactionPeriod(
-                        startOfDay(yesterday),
-                        endOfDay(yesterday)
+                        startOfDay(yesterday, zone),
+                        endOfDay(yesterday, zone)
                 );
             }
             case THIS_WEEK -> {
@@ -37,8 +38,8 @@ public record TransactionPeriod(
                         TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)
                 );
                 yield new TransactionPeriod(
-                        startOfDay(start),
-                        endOfDay(today)
+                        startOfDay(start, zone),
+                        endOfDay(today, zone)
                 );
             }
             case LAST_WEEK -> {
@@ -47,37 +48,37 @@ public record TransactionPeriod(
                         .minusWeeks(1);
                 var end = start.plusDays(6);
                 yield new TransactionPeriod(
-                        startOfDay(start),
-                        endOfDay(end)
+                        startOfDay(start, zone),
+                        endOfDay(end, zone)
                 );
             }
             case CURRENT_MONTH -> {
                 var start = today.withDayOfMonth(1);
                 yield new TransactionPeriod(
-                        startOfDay(start),
-                        endOfDay(today)
+                        startOfDay(start, zone),
+                        endOfDay(today, zone)
                 );
             }
             case LAST_MONTH -> {
                 var start = today.withDayOfMonth(1).minusMonths(1);
                 var end = start.with(TemporalAdjusters.lastDayOfMonth());
                 yield new TransactionPeriod(
-                        startOfDay(start),
-                        endOfDay(end)
+                        startOfDay(start, zone),
+                        endOfDay(end, zone)
                 );
             }
             case ALL_TIME -> new TransactionPeriod(
                     Instant.EPOCH,
-                    Instant.now()
+                    clock.instant()
             );
         };
     }
 
-    private static Instant startOfDay(LocalDate date) {
-        return date.atStartOfDay(ZONE).toInstant();
+    private static Instant startOfDay(LocalDate date, ZoneId zone) {
+        return date.atStartOfDay(zone).toInstant();
     }
 
-    private static Instant endOfDay(LocalDate date) {
-        return date.plusDays(1).atStartOfDay(ZONE).toInstant();
+    private static Instant endOfDay(LocalDate date, ZoneId zone) {
+        return date.plusDays(1).atStartOfDay(zone).toInstant();
     }
 }
