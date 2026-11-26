@@ -1,6 +1,6 @@
 package dio.budgeting.infrastructure.http.request;
 
-import dio.budgeting.application.input.PersistTransactionInput;
+import dio.budgeting.application.transaction.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
 import jakarta.validation.constraints.NotBlank;

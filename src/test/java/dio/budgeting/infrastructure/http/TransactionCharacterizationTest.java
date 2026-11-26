@@ -1,8 +1,8 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.ai.AiProcessingException;
-import dio.budgeting.application.ai.ProcessReceiptImageUseCase;
-import dio.budgeting.application.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.assistant.ProcessReceiptImageUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
 import dio.budgeting.application.ai.GeminiTextService;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;

@@ -1,17 +1,17 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.ConversationSession;
-import dio.budgeting.application.ConversationSessionService;
-import dio.budgeting.application.ConfirmPendingTransactionUseCase;
-import dio.budgeting.application.HandleAiIntentUseCase;
-import dio.budgeting.application.PendingTransactionException;
-import dio.budgeting.application.PendingTransactionService;
-import dio.budgeting.application.PersistTransactionUseCase;
-import dio.budgeting.application.ProcessTransactionAudioUseCase;
-import dio.budgeting.application.ProcessTransactionAudioWithRetryUseCase;
+import dio.budgeting.application.conversation.ConversationSession;
+import dio.budgeting.application.conversation.ConversationSessionService;
+import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.assistant.HandleAiIntentUseCase;
+import dio.budgeting.application.proposal.PendingTransactionException;
+import dio.budgeting.application.proposal.PendingTransactionService;
+import dio.budgeting.application.transaction.PersistTransactionUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioWithRetryUseCase;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
-import dio.budgeting.application.output.TransactionOutput;
+import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,5 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.*;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.domain.Category;
@@ -29,6 +28,16 @@ import dio.budgeting.infrastructure.http.response.ErrorResponse;
 
 import java.util.List;
 import java.util.UUID;
+import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.conversation.ConversationSessionService;
+import dio.budgeting.application.conversation.FinancialChatUseCase;
+import dio.budgeting.application.assistant.HandleAiIntentUseCase;
+import dio.budgeting.application.transaction.ListTransactionsByCategoryUseCase;
+import dio.budgeting.application.transaction.PersistTransactionUseCase;
+import dio.budgeting.application.assistant.ProcessTransactionAudioWithRetryUseCase;
+import dio.budgeting.application.assistant.SuggestCategoryUseCase;
+import dio.budgeting.application.ai.AiProviderComparisonService;
+import dio.budgeting.application.assistant.ProcessReceiptImageUseCase;
 
 @RestController
 @RequestMapping("/transactions")
@@ -44,7 +53,7 @@ public class TransactionController {
     private final FinancialChatUseCase financialChatUseCase;
     private final ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private final SuggestCategoryUseCase suggestCategoryUseCase;
-    private final dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase;
+    private final dio.budgeting.application.assistant.ProcessReceiptImageUseCase processReceiptImageUseCase;
     private final dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService;
 
     public TransactionController(
@@ -56,7 +65,7 @@ public class TransactionController {
             FinancialChatUseCase financialChatUseCase,
             ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase,
             SuggestCategoryUseCase suggestCategoryUseCase,
-            dio.budgeting.application.ai.ProcessReceiptImageUseCase processReceiptImageUseCase,
+            dio.budgeting.application.assistant.ProcessReceiptImageUseCase processReceiptImageUseCase,
             dio.budgeting.application.ai.AiProviderComparisonService aiProviderComparisonService
     ) {
         this.persistTransactionUseCase = persistTransactionUseCase;

@@ -1,8 +1,8 @@
 package dio.budgeting.infrastructure.http.response;
 
-import dio.budgeting.application.AiIntentResult;
+import dio.budgeting.application.assistant.AiIntentResult;
 import dio.budgeting.application.ai.TransactionAiResponse;
-import dio.budgeting.application.output.TransactionOutput;
+import dio.budgeting.application.transaction.TransactionOutput;
 
 import java.util.List;
 import java.util.UUID;

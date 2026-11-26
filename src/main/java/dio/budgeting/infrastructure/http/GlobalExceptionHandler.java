@@ -1,6 +1,6 @@
 package dio.budgeting.infrastructure.http;
 
-import dio.budgeting.application.PendingTransactionException;
+import dio.budgeting.application.proposal.PendingTransactionException;
 import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.domain.InvalidTransactionException;
 import org.slf4j.Logger;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-import dio.budgeting.application.SessionAccessDeniedException;
+import dio.budgeting.application.conversation.SessionAccessDeniedException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.validation.FieldError;
