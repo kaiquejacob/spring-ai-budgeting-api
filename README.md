@@ -4,6 +4,8 @@
 
 <h1>GESTÃO FINANCEIRA IA</h1>
 
+[![CI](https://github.com/kaiquejacob/spring-ai-budgeting-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kaiquejacob/spring-ai-budgeting-api/actions/workflows/ci.yml)
+
 <p>
   <strong>KAIQUE JACOB</strong> · Java · Spring Boot · Spring AI · Groq · Gemini · MySQL
 </p>
@@ -62,7 +64,7 @@ Os dados são armazenados em MySQL 8.4. O código está organizado em camadas de
 
 </div>
 
-A interface é servida pelo próprio Spring Boot em `src/main/resources/static`.
+A interface é servida pelo próprio Spring Boot em `src/main/resources/static`, sem etapa de build. O JavaScript usa módulos ES em `static/js` (`state`, `dom`, `render`, `upload`, `chat`, `motion` e `main`); os tokens de design ficam em [`static/css/tokens.css`](src/main/resources/static/css/tokens.css). Consulte também o [DESIGN.md](DESIGN.md).
 
 1. Acesse `http://localhost:8080/`.
 2. Faça perguntas sobre suas movimentações ou envie um recibo/áudio.
@@ -145,6 +147,8 @@ Recursos auxiliares:
 |---|---|
 | Interface web | `GET /` |
 | Health check | `GET /actuator/health` |
+| Swagger UI | `/swagger-ui.html` |
+| OpenAPI | `/v3/api-docs` |
 
 Para manter o contexto, reutilize o `sessionId` retornado pela API:
 
@@ -205,13 +209,15 @@ docker compose up -d mysql
 
 O `.env` é usado pelo Docker Compose, mas não é carregado automaticamente pelo `bootRun`. Configure as chaves no ambiente da IDE ou do processo.
 
+O fuso horário da aplicação é `America/Sao_Paulo`, configurado pela propriedade `app.timezone`.
+
 > Não execute a API local e o container da API simultaneamente na mesma porta.
 
 ---
 
 ## `TESTES`
 
-Suíte padrão:
+`./gradlew test` roda sem Docker, sem MySQL e sem chaves de API, usando H2 em memória. Os testes que acessam o Groq só executam quando `GROQ_API_KEY` existe; chamadas de integração ao Gemini dependem de `GEMINI_API_KEY`.
 
 ```bash
 ./gradlew test
