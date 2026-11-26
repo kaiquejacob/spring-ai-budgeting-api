@@ -258,13 +258,16 @@ Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 src/main/java/dio/budgeting/
 ├── domain/                  # Entidades, value objects e contratos
 ├── application/             # Casos de uso e serviços
-│   ├── ai/                  # Interpretação, recibos e comparação
-│   ├── input/               # Entradas
-│   └── output/              # Saídas
+│   ├── transaction/         # Registro e consulta de transações
+│   ├── proposal/            # Propostas pendentes e confirmação
+│   ├── conversation/        # Sessões, chat financeiro e ferramentas
+│   ├── assistant/           # Intenções, áudio, recibos e categorias
+│   └── ai/                  # Contratos de IA e provedores de texto
 └── infrastructure/
     ├── ai/                  # Configurações e integrações
     ├── http/                # Controllers, DTOs e erros
-    └── persistence/         # JPA e repositórios
+    ├── persistence/         # JPA e repositórios
+    └── time/                # Relógio e fuso horário
 
 src/main/resources/
 ├── prompts/                 # Instruções dos modelos
