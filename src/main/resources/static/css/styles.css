@@ -46,6 +46,9 @@ textarea {
     outline: 1px solid var(--focus-ring);
     outline-offset: 2px;
     box-shadow: 0 0 0 3px var(--focus-halo);
+    transition:
+            outline-color var(--duration-fast) var(--ease-out),
+            box-shadow var(--duration-fast) var(--ease-out);
 }
 
 [hidden] {
@@ -135,15 +138,21 @@ textarea {
     border-color: var(--primary-hover);
 }
 
+.button-primary:not(:disabled):focus-visible {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
 .button-primary:disabled {
     background: var(--primary-disabled-background);
     border-color: var(--transparent);
     color: var(--primary-disabled-text);
 }
 
-.new-conversation {
+.navigation-item.new-conversation {
     width: 100%;
     justify-content: flex-start;
+    color: var(--text);
 }
 
 .sidebar-navigation {
@@ -165,6 +174,9 @@ textarea {
     color: var(--text-secondary);
     font-size: 14px;
     text-align: left;
+    transition:
+            background-color var(--duration-fast) var(--ease-out),
+            color var(--duration-fast) var(--ease-out);
 }
 
 .navigation-item svg {
@@ -172,6 +184,11 @@ textarea {
 }
 
 .navigation-item:not(:disabled):hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.navigation-item:not(:disabled):focus-visible {
     background: var(--surface-hover);
     color: var(--text);
 }
@@ -295,8 +312,9 @@ textarea {
     flex-direction: column;
     align-items: center;
     gap: 32px;
-    margin: 0 0 64px;
+    margin: 0 0 72px;
     text-align: center;
+    transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .welcome-mark {
@@ -350,7 +368,7 @@ textarea {
     gap: 8px;
     width: 100%;
     min-height: 120px;
-    padding: 22px 12px 12px 20px;
+    padding: 14px 12px 8px 20px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 18px;
@@ -373,7 +391,7 @@ textarea {
 .composer textarea {
     display: block;
     width: 100%;
-    min-height: 56px;
+    min-height: 44px;
     max-height: 144px;
     padding: 4px;
     resize: none;
@@ -429,6 +447,11 @@ textarea {
     color: var(--text);
 }
 
+.icon-button:not(:disabled):not(.send-button):focus-visible {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
 .send-button {
     width: 32px;
     height: 32px;
@@ -443,6 +466,11 @@ textarea {
 
 .send-button:not(:disabled):hover {
     background: var(--primary-hover);
+}
+
+.send-button:not(:disabled):focus-visible {
+    background: var(--primary);
+    color: var(--primary-text);
 }
 
 .send-button:disabled {
@@ -495,6 +523,16 @@ textarea {
     justify-content: center;
     gap: 8px;
     margin-top: 14px;
+    transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.motion-fade-out {
+    opacity: 0;
+}
+
+.workspace-revealing .welcome-heading,
+.workspace-revealing .suggestions {
+    opacity: 0;
 }
 
 .suggestion {
@@ -521,6 +559,11 @@ textarea {
     color: var(--text);
 }
 
+.suggestion:not(:disabled):focus-visible {
+    background: var(--surface);
+    color: var(--text);
+}
+
 .chat-messages {
     display: flex;
     flex-direction: column;
@@ -543,6 +586,74 @@ textarea {
     gap: 4px;
     margin-bottom: 22px;
     overflow-wrap: anywhere;
+}
+
+.message-enter {
+    animation: message-enter var(--duration-base) var(--ease-out) both;
+}
+
+.message-response {
+    animation: fade-in var(--duration-fast) var(--ease-out) both;
+}
+
+.message-loading-exit {
+    animation: fade-out var(--duration-fast) var(--ease-out) both;
+}
+
+.assistant-loading-content {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+.assistant-loading-status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--text-secondary);
+}
+
+.assistant-loading-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: loading-pulse 1.2s var(--ease-out) infinite;
+}
+
+.assistant-loading-skeleton {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 10px;
+    overflow: hidden;
+    background: var(--surface-hover);
+    border-radius: 999px;
+}
+
+.assistant-loading-skeleton:last-child {
+    width: 72%;
+}
+
+.assistant-loading-skeleton::after {
+    position: absolute;
+    inset: 0;
+    background:
+            linear-gradient(
+                    90deg,
+                    var(--surface-hover) 0%,
+                    var(--border-hover) 50%,
+                    var(--surface-hover) 100%
+            );
+    content: "";
+    transform: translateX(-100%);
+    animation: skeleton-shimmer 1.4s var(--ease-out) infinite;
+}
+
+.message-loading-error {
+    animation: fade-in var(--duration-fast) var(--ease-out) both;
 }
 
 .message-author {
@@ -595,6 +706,10 @@ textarea {
     border-radius: var(--radius-medium);
 }
 
+.proposal-enter {
+    animation: proposal-enter var(--duration-base) var(--ease-out) both;
+}
+
 .transaction-header {
     display: flex;
     align-items: center;
@@ -616,6 +731,19 @@ textarea {
     border-radius: var(--radius-small);
     color: var(--text-secondary);
     font-size: 11px;
+    transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.transaction-footer .button:active {
+    transform: scale(0.98);
+}
+
+.transaction-footer .button {
+    transition:
+            background-color var(--duration-fast) var(--ease-out),
+            border-color var(--duration-fast) var(--ease-out),
+            color var(--duration-fast) var(--ease-out),
+            transform var(--duration-fast) var(--ease-out);
 }
 
 .transaction-card h3 {
@@ -789,5 +917,68 @@ textarea {
         transition: none !important;
         animation: none !important;
         scroll-behavior: auto !important;
+    }
+}
+
+@keyframes message-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes proposal-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes loading-pulse {
+    0%,
+    100% {
+        opacity: 0.72;
+        transform: scale(0.85);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes skeleton-shimmer {
+    to {
+        transform: translateX(100%);
     }
 }

@@ -26,9 +26,20 @@
 
 - Sidebar: 240 px; itens: 38 px de altura, ícones de 18 px e intervalo de 12 px.
 - Símbolo da marca: 20 px na sidebar e 24 px no estado vazio; SVG inline, traço de 1.5 px.
-- Título vazio: 26 px, peso 400, line-height 1.25; 32 px após o símbolo e 64 px até o compositor.
-- Compositor: largura máxima de 672 px, altura mínima de 120 px, raio de 18 px e padding `22px 12px 12px 20px`.
+- Título vazio: 26 px, peso 400, line-height 1.25; 32 px após o símbolo e 72 px até o compositor.
+- Compositor: largura máxima de 672 px, altura mínima de 120 px, altura total próxima de 120 px, raio de 18 px e padding `14px 12px 8px 20px`.
 - Botões do compositor: 32 px; ícones: 18 px. Sugestões: 34 px de altura e texto de 14 px.
 - Usar `currentColor` nos SVGs e centralizar cores em `tokens.css`.
 - Valores monetários usam fonte mono com algarismos tabulares; rótulos usam caixa normal.
 - Respeitar foco visível e `prefers-reduced-motion`; evitar cartões e animações decorativas em excesso.
+
+## Movimento
+
+- Curva de entrada: `--ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`); durações: `--duration-fast` 150 ms, `--duration-base` 200 ms e `--duration-slow` 280 ms.
+- Mensagens novas entram com opacity e translateY (200 ms); respostas que substituem o estado de análise aparecem em fade (150 ms).
+- Enquanto texto, áudio ou recibo aguarda resposta, o indicador pulsa (1.2 s) e dois esqueletos fazem shimmer (1.4 s); o ponto fica estático quando movimento reduzido está ativo.
+- Cartões de proposta entram com opacity, translateY e scale de 0.98 a 1 (200 ms); confirmação usa active scale 0.98 e selo em fade (150 ms).
+- Na primeira mensagem, título, símbolo e sugestões desaparecem em fade (150 ms); o compositor usa FLIP em transform (280 ms). Nova conversa retorna com fade de 150 ms.
+- Botões, chips, navegação e anel de foco mudam cor/fundo em 150 ms. A rolagem até novas mensagens é suave.
+- Não animar dimensões, margens ou coordenadas de layout; shimmer usa apenas translateX, sem mudar tamanho.
+- `prefers-reduced-motion: reduce` remove transições, animações e rolagem suave; os estados finais são aplicados imediatamente.

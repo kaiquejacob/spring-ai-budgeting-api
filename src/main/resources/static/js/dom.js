@@ -26,7 +26,15 @@ export const dom = {
 };
 
 export function scrollToLatest() {
-    dom.scrollContainer.scrollTop = dom.scrollContainer.scrollHeight;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        dom.scrollContainer.scrollTop = dom.scrollContainer.scrollHeight;
+        return;
+    }
+
+    dom.scrollContainer.scrollTo({
+        top: dom.scrollContainer.scrollHeight,
+        behavior: "smooth"
+    });
 }
 
 export function clearError() {

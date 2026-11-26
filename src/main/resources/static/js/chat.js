@@ -10,6 +10,8 @@ import { confirmTransaction, sendAudio, sendChatMessage, sendReceipt } from "./a
 import {
     addMessage,
     renderFileResponse,
+    showLoading,
+    showLoadingError,
     updateSession,
     updateWorkspaceState
 } from "./render.js";
@@ -28,6 +30,24 @@ function finishOperation() {
     dom.status.textContent = "";
     updateControls();
     dom.input.focus();
+}
+
+function updateProposalBadge(entry, text) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        entry.badge.textContent = text;
+        return;
+    }
+
+    if (entry.badgeFrame !== undefined) {
+        window.cancelAnimationFrame(entry.badgeFrame);
+    }
+
+    entry.badge.style.opacity = "0";
+    entry.badgeFrame = window.requestAnimationFrame(() => {
+        entry.badge.textContent = text;
+        entry.badge.style.opacity = "1";
+        entry.badgeFrame = undefined;
+    });
 }
 
 export async function confirmProposal(entry) {
@@ -53,7 +73,7 @@ export async function confirmProposal(entry) {
         entry.state = "confirmed";
         entry.card.classList.add("is-confirmed");
         entry.badge.classList.add("is-confirmed");
-        entry.badge.textContent = "Registrada";
+        updateProposalBadge(entry, "Registrada");
         entry.button.textContent = "Registro confirmado";
 
         entry.help.textContent =
@@ -69,7 +89,7 @@ export async function confirmProposal(entry) {
         );
     } catch (error) {
         entry.state = "unverified";
-        entry.badge.textContent = "Confirmação não verificada";
+        updateProposalBadge(entry, "Confirmação não verificada");
         entry.button.textContent = "Verifique as movimentações";
 
         entry.help.textContent =
@@ -103,6 +123,7 @@ export async function submitMessage(event) {
     const userArticle = addMessage("Você", message, true);
     dom.input.value = "";
     updateControls();
+    showLoading(dom.status.textContent);
 
     try {
         const data = await sendChatMessage(message, state.sessionId);
@@ -110,6 +131,7 @@ export async function submitMessage(event) {
         updateSession(data.sessionId);
         addMessage("Assistente", data.answer);
     } catch (error) {
+        showLoadingError(errorMessage(error));
         userArticle.append(
             element(
                 "span",
@@ -133,13 +155,12 @@ async function submitAttachment(message) {
     let messageArticle = null;
     let messageDelivered = false;
 
-    beginOperation(
-        message
-            ? "Enviando mensagem e analisando arquivo…"
-            : isReceipt
-                ? "Analisando recibo…"
-                : "Transcrevendo e interpretando áudio…"
-    );
+    const operationMessage = message
+        ? "Enviando mensagem e analisando arquivo…"
+        : isReceipt
+            ? "Analisando recibo…"
+            : "Transcrevendo e interpretando áudio…";
+    beginOperation(operationMessage);
 
     if (message) {
         messageArticle = addMessage("Você", message, true);
@@ -152,6 +173,7 @@ async function submitAttachment(message) {
         true
     );
     updateControls();
+    showLoading(operationMessage);
 
     try {
         if (message) {
@@ -162,6 +184,7 @@ async function submitAttachment(message) {
             updateSession(chatResponse.sessionId);
             addMessage("Assistente", chatResponse.answer);
             messageDelivered = true;
+            showLoading(operationMessage);
         }
 
         const data = isReceipt
@@ -172,6 +195,9 @@ async function submitAttachment(message) {
         state.selectedAttachment = null;
         updateAttachmentPreview();
     } catch (error) {
+        showLoadingError(
+            `${errorMessage(error)} Não houve reenvio automático.`
+        );
         if (messageArticle && !messageDelivered) {
             messageArticle.append(
                 element(

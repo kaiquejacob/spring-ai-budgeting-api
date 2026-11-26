@@ -5,6 +5,7 @@ import {
     updateControls
 } from "./dom.js";
 import { sessionChanged, state } from "./state.js";
+import { transitionWorkspace } from "./motion.js";
 
 const currency = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -29,16 +30,94 @@ const periodNames = {
 
 export function updateWorkspaceState() {
     const isEmpty = dom.messages.childElementCount === 0;
-    dom.workspace.classList.toggle("workspace-empty", isEmpty);
-    dom.workspace.classList.toggle("workspace-active", !isEmpty);
+    transitionWorkspace(isEmpty, {
+        workspace: dom.workspace,
+        composer: dom.form,
+        heading: dom.workspace.querySelector(".welcome-heading"),
+        suggestions: dom.workspace.querySelector(".suggestions")
+    });
+}
+
+let activeLoading = null;
+
+function removeLoadingAfterFade(loading) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        loading.remove();
+        return;
+    }
+
+    loading.classList.remove("message-enter");
+    loading.classList.add("message-loading-exit");
+    loading.addEventListener("animationend", () => loading.remove(), {
+        once: true
+    });
+}
+
+export function showLoading(message) {
+    const loading = element(
+        "article",
+        "message message-assistant message-loading message-enter"
+    );
+    const content = element("div", "assistant-loading-content");
+    const status = element("div", "assistant-loading-status");
+    const dot = element("span", "assistant-loading-dot");
+
+    dot.setAttribute("aria-hidden", "true");
+    status.append(
+        dot,
+        element("span", "assistant-loading-text", message)
+    );
+    content.append(
+        status,
+        element("span", "assistant-loading-skeleton"),
+        element("span", "assistant-loading-skeleton")
+    );
+    loading.setAttribute("role", "status");
+    loading.append(content);
+    dom.messages.append(loading);
+    updateWorkspaceState();
+    scrollToLatest();
+    activeLoading = loading;
+
+    return loading;
+}
+
+export function showLoadingError(message) {
+    if (!activeLoading) {
+        return;
+    }
+
+    const loading = activeLoading;
+    activeLoading = null;
+    loading.classList.remove("message-enter");
+    loading.classList.remove("message-loading");
+    loading.classList.add("message-loading-error");
+    loading.replaceChildren(
+        element("div", "message-text", message)
+    );
+}
+
+function dismissActiveLoading() {
+    if (!activeLoading) {
+        return false;
+    }
+
+    const loading = activeLoading;
+    activeLoading = null;
+    removeLoadingAfterFade(loading);
+    return true;
 }
 
 export function addMessage(author, text, userMessage = false) {
+    const replacesLoading = !userMessage && dismissActiveLoading();
     const article = element(
         "article",
         userMessage
             ? "message message-user"
             : "message message-assistant"
+    );
+    article.classList.add(
+        replacesLoading ? "message-response" : "message-enter"
     );
 
     article.append(
@@ -178,6 +257,7 @@ export function renderProposal(data, origin) {
     );
 
     article.append(card);
+    card.classList.add("proposal-enter");
 
     state.pendingProposal = {
         token: data.confirmationToken,
