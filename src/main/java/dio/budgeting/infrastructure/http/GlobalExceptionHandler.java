@@ -95,11 +95,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String fieldName;
         String correction;
 
-        if (exception instanceof MethodArgumentTypeMismatchException mismatch
-                && "userId".equals(mismatch.getName())) {
-            fieldName = "X-User-Id";
-            correction = "Informe um UUID válido.";
-        } else if (exception instanceof MethodArgumentTypeMismatchException mismatch) {
+        if (exception instanceof MethodArgumentTypeMismatchException mismatch) {
             fieldName = mismatch.getName();
             correction = "Informe um valor válido.";
         } else if (exception instanceof MissingRequestHeaderException missing) {

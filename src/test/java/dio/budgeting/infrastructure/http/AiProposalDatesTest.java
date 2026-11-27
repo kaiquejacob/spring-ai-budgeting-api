@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static dio.budgeting.infrastructure.http.AuthenticatedTestSession.authenticated;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,7 +91,7 @@ class AiProposalDatesTest {
                 groqResponse("{" + CREATE_FIELDS + ",\"type\":\"INCOME\",\"occurredOn\":\"2026-11-22\"}"),
                 groqResponse("{\"intent\":\"CONFIRM_PENDING\"}"));
 
-        var proposal = mvc.perform(multipart("/transactions/ai").file(audio()).header("X-User-Id", USER))
+        var proposal = mvc.perform(multipart("/transactions/ai").file(audio()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.proposedTransaction.type").value("INCOME"))
                 .andExpect(jsonPath("$.proposedTransaction.occurredAt").value(YESTERDAY))
@@ -105,7 +106,7 @@ class AiProposalDatesTest {
         var request = confirmByAudio
                 ? multipart("/transactions/ai").file(audio()).param("sessionId", sessionId)
                 : post("/transactions/{token}/confirm", token).param("sessionId", sessionId);
-        var confirmed = mvc.perform(request.header("X-User-Id", USER))
+        var confirmed = mvc.perform(request.with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdTransaction.type").value("INCOME"))
                 .andExpect(jsonPath("$.createdTransaction.occurredAt").value(YESTERDAY))
@@ -133,7 +134,7 @@ class AiProposalDatesTest {
     void extractsExplicitReceiptDateAndPreservesItThroughConfirmation() throws Exception {
         clock.advanceSeconds(43_230);
         geminiReply("{" + CREATE_FIELDS + ",\"type\":\"EXPENSE\",\"occurredOn\":\"2026-11-20\"}", "2026-11-24");
-        var proposal = mvc.perform(multipart("/transactions/ai/receipt").file(receipt()).header("X-User-Id", USER))
+        var proposal = mvc.perform(multipart("/transactions/ai/receipt").file(receipt()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.proposedTransaction.type").value("EXPENSE"))
                 .andExpect(jsonPath("$.proposedTransaction.occurredAt").value("2026-11-20T03:00:00Z"))
@@ -141,7 +142,7 @@ class AiProposalDatesTest {
         gemini.server().verify();
         assertThat(transactions.count()).isZero();
         String token = JsonPath.read(proposal, "$.confirmationToken");
-        mvc.perform(post("/transactions/{token}/confirm", token).header("X-User-Id", USER))
+        mvc.perform(post("/transactions/{token}/confirm", token).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdTransaction.occurredAt").value("2026-11-20T03:00:00Z"));
     }
@@ -150,7 +151,7 @@ class AiProposalDatesTest {
     void omittedFieldsUseExpenseAndTheConfirmationInstant() throws Exception {
         when(transcription.transcribe(any(Resource.class))).thenReturn("Gastei 25,90");
         when(groq.call(any(Prompt.class))).thenReturn(groqResponse("{" + CREATE_FIELDS + "}"));
-        var proposal = mvc.perform(multipart("/transactions/ai").file(audio()).header("X-User-Id", USER))
+        var proposal = mvc.perform(multipart("/transactions/ai").file(audio()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.proposedTransaction.type").value("EXPENSE"))
                 .andExpect(jsonPath("$.proposedTransaction.occurredAt").doesNotExist())
@@ -158,7 +159,7 @@ class AiProposalDatesTest {
         assertThat(transactions.count()).isZero();
         clock.advanceSeconds(60);
         String token = JsonPath.read(proposal, "$.confirmationToken");
-        mvc.perform(post("/transactions/{token}/confirm", token).header("X-User-Id", USER))
+        mvc.perform(post("/transactions/{token}/confirm", token).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdTransaction.type").value("EXPENSE"))
                 .andExpect(jsonPath("$.createdTransaction.occurredAt").value(clock.instant().toString()));
@@ -173,7 +174,7 @@ class AiProposalDatesTest {
     void invalidGroqFieldsAskForClarificationWithoutToken(String invalidField) throws Exception {
         when(transcription.transcribe(any(Resource.class))).thenReturn("Compra");
         when(groq.call(any(Prompt.class))).thenReturn(groqResponse("{" + CREATE_FIELDS + "," + invalidField + "}"));
-        mvc.perform(multipart("/transactions/ai").file(audio()).header("X-User-Id", USER))
+        mvc.perform(multipart("/transactions/ai").file(audio()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("CLARIFICATION_NEEDED"))
                 .andExpect(jsonPath("$.confirmationToken").doesNotExist());
@@ -185,7 +186,7 @@ class AiProposalDatesTest {
     @Test
     void invalidGeminiFieldsAskForClarificationWithoutToken() throws Exception {
         geminiReply("{" + CREATE_FIELDS + ",\"occurredOn\":\"2026-11-24\"}", "2026-11-23");
-        mvc.perform(multipart("/transactions/ai/receipt").file(receipt()).header("X-User-Id", USER))
+        mvc.perform(multipart("/transactions/ai/receipt").file(receipt()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("CLARIFICATION_NEEDED"))
                 .andExpect(jsonPath("$.confirmationToken").doesNotExist());
@@ -199,7 +200,7 @@ class AiProposalDatesTest {
         when(groq.call(any(Prompt.class))).thenReturn(groqResponse("""
                 {"intent":"LIST_TRANSACTIONS","category":"GROCERIES","type":"TRANSFER","occurredOn":{}}
                 """));
-        mvc.perform(multipart("/transactions/ai").file(audio()).header("X-User-Id", USER))
+        mvc.perform(multipart("/transactions/ai").file(audio()).with(authenticated(USER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("LIST_TRANSACTIONS"))
                 .andExpect(jsonPath("$.confirmationToken").doesNotExist());
@@ -212,7 +213,7 @@ class AiProposalDatesTest {
         gemini.server().expect(requestTo("https://gemini.example/models/test:generateContent"))
                 .andRespond(withSuccess(geminiBody(result), MediaType.APPLICATION_JSON));
 
-        mvc.perform(post("/transactions/ai/compare").header("X-User-Id", USER)
+        mvc.perform(post("/transactions/ai/compare").with(authenticated(USER))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"Comprei no mercado\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.groqResponse.intent").value("CREATE_TRANSACTION"))
