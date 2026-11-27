@@ -237,6 +237,62 @@ Os testes cobrem domínio, serviços, sessões, confirmação de propostas, mem�
 
 Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 
+
+### Migração do schema MySQL
+
+Em um banco vazio, o Flyway aplica `V1__initial_schema.sql` na inicialização e o
+Hibernate valida o schema. Em um banco legado, a V1 só pode ser marcada como
+baseline depois da conferência abaixo. O baseline automático fica desativado.
+
+Para demonstrar os dois cenários em MySQL 8.4 descartável, execute
+`./gradlew mysqlMigrationTest` (`.\gradlew.bat mysqlMigrationTest` no Windows).
+O Testcontainers cria bancos isolados, aplica a V1 no banco vazio e demonstra
+a comparação do schema e o baseline explícito com dados de exemplo no legado.
+O comando exige Docker disponível e falha se o Docker estiver indisponível.
+
+Para preparar um banco legado, pause as escritas e confirme host, porta, schema
+e usuário com a mesma conexão que será usada pelo Flyway. Nos exemplos Bash,
+preencha `DB_HOST`, `DB_PORT`, `DB_USER` e `DB_NAME` com o destino conferido.
+Use `mysql_config_editor` para configurar o login path `budgeting-baseline`.
+
+```bash
+mysql_target=(--login-path=budgeting-baseline --protocol=TCP --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER")
+mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT DATABASE(), @@hostname, @@port, @@server_uuid, CURRENT_USER(); SHOW TABLES;'
+mysqldump "${mysql_target[@]}" --single-transaction --no-tablespaces --set-gtid-purged=OFF --result-file=budgeting-before-flyway.sql "$DB_NAME"
+```
+
+Valide o backup restaurando-o em outro banco descartável. Provisione também um
+schema vazio em MySQL 8.4 com os mesmos padrões de charset e collation e aplique
+a V1 nele. Compare o `SHOW CREATE TABLE` das duas tabelas do legado com o da V1,
+incluindo colunas, tipos, nulabilidade, chaves, índices, UUIDs, enums e precisão
+dos timestamps. Com `mysql_reference` configurado para o destino descartável
+no login path `budgeting-reference` e `REFERENCE_DB` definido para o schema migrado:
+
+```bash
+mysql_reference=(--login-path=budgeting-reference)
+ddl='SHOW CREATE TABLE conversation_sessions; SHOW CREATE TABLE transaction_entity;'
+mysql "${mysql_target[@]}" --batch --raw --skip-column-names "$DB_NAME" -e "$ddl" > legacy-schema.sql
+mysql "${mysql_reference[@]}" --batch --raw --skip-column-names "$REFERENCE_DB" -e "$ddl" > v1-schema.sql
+diff -u v1-schema.sql legacy-schema.sql
+```
+
+Prossiga somente se os schemas coincidirem e o legado ainda não tiver a tabela
+`flyway_schema_history`. Use a CLI do Flyway da mesma versão resolvida pelo
+Gradle (`./gradlew dependencyInsight --dependency flyway-core --configuration runtimeClasspath`).
+Configure `FLYWAY_USER` e `FLYWAY_PASSWORD` no ambiente da sessão para o destino
+conferido e execute a partir da raiz do repositório:
+
+```bash
+export FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}"
+flyway -locations=filesystem:src/main/resources/db/migration -baselineVersion=1 baseline
+flyway -locations=filesystem:src/main/resources/db/migration info
+mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank;'
+```
+
+Confira a linha `1 / BASELINE / 1` e compare os dados das duas tabelas com o
+backup. Inicie a aplicação no mesmo destino e confirme que a validação do
+Hibernate conclui antes de retomar as escritas.
+
 ---
 
 ## `LIMITAÇÕES CONHECIDAS`

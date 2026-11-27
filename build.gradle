@@ -25,6 +25,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mysql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'com.h2database:h2'
 
@@ -36,6 +38,8 @@ dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-mysql'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     runtimeOnly 'com.mysql:mysql-connector-j'
@@ -44,8 +48,20 @@ dependencies {
 tasks.named('test') {
     jvmArgs '-Duser.timezone=UTC'
     useJUnitPlatform {
-        excludeTags 'groq-evaluation'
+        excludeTags 'groq-evaluation', 'mysql-migration'
     }
+}
+
+tasks.register('mysqlMigrationTest', Test) {
+    group = 'verification'
+    description = 'Runs the Flyway migration tests against disposable MySQL 8.4 containers.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    jvmArgs '-Duser.timezone=UTC'
+    useJUnitPlatform {
+        includeTags 'mysql-migration'
+    }
+    testLogging.showStandardStreams = true
 }
 
 tasks.register('groqEvaluationTest', Test) {
