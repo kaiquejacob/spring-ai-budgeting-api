@@ -1,6 +1,12 @@
 package dio.budgeting.migration;
 
 import dio.budgeting.BudgetingApplication;
+import dio.budgeting.application.ai.TransactionAiResponse;
+import dio.budgeting.application.ai.TransactionIntent;
+import dio.budgeting.application.conversation.ConversationSessionService;
+import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.proposal.PendingTransactionException;
+import dio.budgeting.application.proposal.RegisterPendingProposalUseCase;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.domain.TransactionType;
@@ -26,6 +32,9 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,8 +47,11 @@ class MySqlMigrationTest {
     private static final String V2 = "V2__add_transaction_type_and_occurred_at.sql";
     private static final String V3 = "V3__create_users.sql";
     private static final String V4 = "V4__add_transaction_user_foreign_key.sql";
+    private static final String V5 = "V5__create_pending_transactions.sql";
     private static final String USER_FK = "fk_transaction_entity_user";
     private static final String LEGACY_USER_ID = "00000000000000000000000000000010";
+    private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000010");
+    private static final Instant OCCURRED_AT = Instant.parse("2025-01-02T03:00:00Z");
     private static final String INSERT_USER = """
             INSERT INTO users (id, email, password_hash, created_at)
             VALUES (UNHEX(?), ?, 'fixture-hash', '2025-01-02 03:04:05.123456')
@@ -57,6 +69,129 @@ class MySqlMigrationTest {
     private final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
 
     @Test
+    void confirmsPersistedProposalAfterApplicationRestart() {
+        var jdbc = new JdbcTemplate(dataSource(mysql));
+        UUID token;
+        UUID sessionId;
+        try (var context = startApplication(mysql)) {
+            jdbc.update(INSERT_USER, LEGACY_USER_ID, "proposal-owner@example.invalid");
+            var session = context.getBean(ConversationSessionService.class).getOrCreate(null, OWNER);
+            sessionId = session.id();
+            token = context.getBean(RegisterPendingProposalUseCase.class).execute(OWNER, proposal(), session);
+            assertThat(transactionCount(jdbc)).isZero();
+        }
+
+        try (var context = startApplication(mysql)) {
+            var session = context.getBean(ConversationSessionService.class).getOrCreate(sessionId, OWNER);
+            assertThat(session.pendingConfirmationToken()).isEqualTo(token);
+            assertThat(session.pendingProposal().type()).isNull();
+            var confirmed = context.getBean(ConfirmPendingTransactionUseCase.class).execute(token, OWNER);
+            assertThat(confirmed.type()).isEqualTo(TransactionType.INCOME);
+            assertThat(confirmed.occurredAt()).isEqualTo(OCCURRED_AT);
+            assertThat(transactionCount(jdbc)).isEqualTo(1L);
+            assertThat(jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM transaction_entity
+                    WHERE type = 'INCOME' AND occurred_at = '2025-01-02 03:00:00'
+                    """, Long.class)).isEqualTo(1L);
+        }
+        System.out.println("Proposal restart: no transaction before confirmation; reloaded token retained INCOME and occurrence.");
+    }
+
+    @Test
+    void onlyOneConcurrentConfirmationWinsAndInvalidTokensDoNotConsumeOwnerProposal() throws Exception {
+        var jdbc = new JdbcTemplate(dataSource(mysql));
+        try (var context = startApplication(mysql)) {
+            jdbc.update(INSERT_USER, LEGACY_USER_ID, "proposal-owner@example.invalid");
+            var other = UUID.fromString("00000000-0000-0000-0000-000000000011");
+            jdbc.update(INSERT_USER, "00000000000000000000000000000011", "other-owner@example.invalid");
+            var sessions = context.getBean(ConversationSessionService.class);
+            var register = context.getBean(RegisterPendingProposalUseCase.class);
+            var confirm = context.getBean(ConfirmPendingTransactionUseCase.class);
+            var session = sessions.getOrCreate(null, OWNER);
+            var expired = register.execute(OWNER, proposal(), session);
+            jdbc.update("UPDATE pending_transactions SET expires_at = '2000-01-01 00:00:00' WHERE token = UNHEX(?)",
+                    expired.toString().replace("-", ""));
+            assertThatThrownBy(() -> confirm.execute(expired, OWNER))
+                    .isInstanceOf(PendingTransactionException.class).hasMessage("Proposta expirada.");
+            var token = register.execute(OWNER, proposal(), session);
+            assertThatThrownBy(() -> confirm.execute(token, other)).isInstanceOf(PendingTransactionException.class);
+            assertThat(transactionCount(jdbc)).isZero();
+
+            var ready = new CountDownLatch(2);
+            var start = new CountDownLatch(1);
+            try (var workers = Executors.newFixedThreadPool(2)) {
+                var first = workers.submit(() -> attemptConfirmation(confirm, token, ready, start));
+                var second = workers.submit(() -> attemptConfirmation(confirm, token, ready, start));
+                try {
+                    assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+                } finally {
+                    start.countDown();
+                }
+                assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
+                        .containsExactlyInAnyOrder(true, false);
+            }
+            assertThat(transactionCount(jdbc)).isEqualTo(1L);
+            assertThatThrownBy(() -> confirm.execute(token, OWNER)).isInstanceOf(PendingTransactionException.class);
+        }
+        System.out.println("Proposal concurrency: expired and foreign attempts rejected; two independent confirmations yielded one transaction.");
+    }
+
+    @Test
+    void rollsBackTokenWhenTransactionOrSessionWriteFails() {
+        var jdbc = new JdbcTemplate(dataSource(mysql));
+        try (var context = startApplication(mysql)) {
+            jdbc.update(INSERT_USER, LEGACY_USER_ID, "proposal-owner@example.invalid");
+            var sessions = context.getBean(ConversationSessionService.class);
+            var register = context.getBean(RegisterPendingProposalUseCase.class);
+            var confirm = context.getBean(ConfirmPendingTransactionUseCase.class);
+            var initialSession = sessions.getOrCreate(null, OWNER);
+            jdbc.execute("ALTER TABLE conversation_sessions ADD CONSTRAINT fixture_session_failure CHECK (pending_confirmation_token IS NULL)");
+            assertThatThrownBy(() -> register.execute(OWNER, proposal(), initialSession))
+                    .hasStackTraceContaining("fixture_session_failure");
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pending_transactions", Long.class)).isZero();
+            var reloaded = sessions.getOrCreate(initialSession.id(), OWNER);
+            assertThat(reloaded.pendingConfirmationToken()).isNull();
+            jdbc.execute("ALTER TABLE conversation_sessions DROP CHECK fixture_session_failure");
+
+            var token = register.execute(OWNER, proposal(), reloaded);
+            jdbc.execute("ALTER TABLE transaction_entity ADD CONSTRAINT fixture_transaction_failure CHECK (amount <> 2590)");
+            assertThatThrownBy(() -> confirm.execute(token, OWNER)).hasStackTraceContaining("fixture_transaction_failure");
+            assertThat(transactionCount(jdbc)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pending_transactions", Long.class)).isEqualTo(1L);
+            assertThat(sessions.getOrCreate(reloaded.id(), OWNER).pendingConfirmationToken()).isEqualTo(token);
+            jdbc.execute("ALTER TABLE transaction_entity DROP CHECK fixture_transaction_failure");
+            assertThat(confirm.execute(token, OWNER).type()).isEqualTo(TransactionType.INCOME);
+            assertThat(transactionCount(jdbc)).isEqualTo(1L);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pending_transactions", Long.class)).isZero();
+        }
+        System.out.println("Proposal rollback: session write failure left no proposal or reference; "
+                + "transaction write failure left zero transactions and the same token succeeded on retry.");
+    }
+
+    private static boolean attemptConfirmation(ConfirmPendingTransactionUseCase confirm, UUID token,
+                                               CountDownLatch ready, CountDownLatch start) throws InterruptedException {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent confirmation");
+        }
+        try {
+            confirm.execute(token, OWNER);
+            return true;
+        } catch (PendingTransactionException exception) {
+            return false;
+        }
+    }
+
+    private static TransactionAiResponse proposal() {
+        return new TransactionAiResponse(TransactionIntent.CREATE_TRANSACTION, "Refund", 2590L,
+                Category.GROCERIES, null, null, null, TransactionType.INCOME, OCCURRED_AT);
+    }
+
+    private static long transactionCount(JdbcTemplate jdbc) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM transaction_entity", Long.class);
+    }
+
+    @Test
     void migratesAnEmptyDatabaseAndValidatesWithHibernate() {
         var jdbc = new JdbcTemplate(dataSource(mysql));
         assertThat(jdbc.queryForList("SHOW TABLES")).isEmpty();
@@ -69,7 +204,9 @@ class MySqlMigrationTest {
                     List.of("1", "SQL", V1, true),
                     List.of("2", "SQL", V2, true),
                     List.of("3", "SQL", V3, true),
-                    List.of("4", "SQL", V4, true));
+                    List.of("4", "SQL", V4, true),
+                    List.of("5", "SQL", V5, true));
+            assertThat(jdbc.queryForList("SHOW TABLES LIKE 'pending_transactions'")).hasSize(1);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
             assertThat(jdbc.queryForList("""
                     SELECT column_type FROM information_schema.columns
@@ -145,7 +282,8 @@ class MySqlMigrationTest {
                     },
                     migration -> assertThat(migration).containsExactly("2", "SQL", V2, true),
                     migration -> assertThat(migration).containsExactly("3", "SQL", V3, true),
-                    migration -> assertThat(migration).containsExactly("4", "SQL", V4, true));
+                    migration -> assertThat(migration).containsExactly("4", "SQL", V4, true),
+                    migration -> assertThat(migration).containsExactly("5", "SQL", V5, true));
             assertThat(jdbc.queryForList("SELECT HEX(id) FROM users", String.class)).containsExactly(LEGACY_USER_ID);
             assertThat(jdbc.queryForList(ORIGINAL_TRANSACTIONS))
                     .usingRecursiveComparison().isEqualTo(originalTransactions);

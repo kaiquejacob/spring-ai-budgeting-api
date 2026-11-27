@@ -4,6 +4,7 @@ import dio.budgeting.application.transaction.PersistTransactionInput;
 import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.TransactionSource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 import dio.budgeting.application.transaction.PersistTransactionUseCase;
@@ -22,6 +23,7 @@ public class ConfirmPendingTransactionUseCase {
         this.persistTransactionUseCase = persistTransactionUseCase;
     }
 
+    @Transactional
     public TransactionOutput execute(UUID token, UUID userId) {
         var proposal = pendingTransactionService.consume(token, userId);
 

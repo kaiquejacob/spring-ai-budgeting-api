@@ -15,6 +15,10 @@ import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
@@ -26,10 +30,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@SpringBootTest
+@ActiveProfiles("test")
 class TransactionConfirmationTest {
 
+    @Autowired
     private PendingTransactionService pendingService;
+    @MockitoBean
     private PersistTransactionUseCase persistUseCase;
+    @Autowired
     private ConfirmPendingTransactionUseCase confirmPendingTransactionUseCase;
     private ProcessTransactionAudioUseCase audioUseCase;
     private ConversationSessionService sessionService;
@@ -43,12 +52,6 @@ class TransactionConfirmationTest {
     @BeforeEach
     void setUp() throws Exception {
         var clock = Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
-        pendingService = new PendingTransactionService(clock);
-        persistUseCase = mock(PersistTransactionUseCase.class);
-        confirmPendingTransactionUseCase = new ConfirmPendingTransactionUseCase(
-                pendingService,
-                persistUseCase
-        );
         audioUseCase = mock(ProcessTransactionAudioUseCase.class);
         sessionService = mock(ConversationSessionService.class);
         audioFile = mock(MultipartFile.class);
