@@ -4,6 +4,8 @@ import dio.budgeting.BudgetingApplication;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.conversation.ConversationSessionService;
+import dio.budgeting.application.conversation.FinancialChatUseCase;
+import dio.budgeting.application.conversation.SessionAccessDeniedException;
 import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
 import dio.budgeting.application.proposal.PendingTransactionException;
 import dio.budgeting.application.proposal.RegisterPendingProposalUseCase;
@@ -15,8 +17,19 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,6 +43,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -38,6 +52,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("mysql-migration")
 @Testcontainers
@@ -48,6 +65,7 @@ class MySqlMigrationTest {
     private static final String V3 = "V3__create_users.sql";
     private static final String V4 = "V4__add_transaction_user_foreign_key.sql";
     private static final String V5 = "V5__create_pending_transactions.sql";
+    private static final String V6 = "V6__create_spring_ai_chat_memory.sql";
     private static final String USER_FK = "fk_transaction_entity_user";
     private static final String LEGACY_USER_ID = "00000000000000000000000000000010";
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000010");
@@ -67,6 +85,77 @@ class MySqlMigrationTest {
 
     @Container
     private final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
+
+    @Test
+    void remembersChatInOrderAcrossRestartAndIsolatesConversations() {
+        UUID sessionId;
+        try (var context = startApplication(mysql, SimulatedChat.class)) {
+            var result = context.getBean(FinancialChatUseCase.class).execute(OWNER, null, "pergunta inicial");
+            assertThat(result.answer()).isEqualTo("resposta: pergunta inicial");
+            sessionId = result.sessionId();
+        }
+
+        try (var context = startApplication(mysql, SimulatedChat.class)) {
+            var chat = context.getBean(FinancialChatUseCase.class);
+            var prompts = context.getBean(CapturedPrompts.class).messages;
+            chat.execute(OWNER, sessionId, "continuação");
+            assertThat(prompts.getLast())
+                    .containsExactly("pergunta inicial", "resposta: pergunta inicial", "continuação");
+
+            chat.execute(OWNER, null, "nova sessão");
+            assertThat(prompts.getLast()).containsExactly("nova sessão");
+            var other = UUID.randomUUID();
+            assertThatThrownBy(() -> chat.execute(other, sessionId, "sessão alheia"))
+                    .isInstanceOf(SessionAccessDeniedException.class);
+            assertThat(prompts).hasSize(2);
+            chat.execute(other, null, "outra conta");
+            assertThat(prompts.getLast()).containsExactly("outra conta");
+
+            var expected = new ArrayList<String>();
+            for (int turn = 1; turn <= 10; turn++) {
+                var message = "janela " + turn;
+                chat.execute(OWNER, sessionId, message);
+                expected.add(message);
+                expected.add("resposta: " + message);
+            }
+            var memory = context.getBean("financialChatMemory", ChatMemory.class);
+            var conversationId = OWNER + ":" + sessionId;
+            assertThat(memory.get(conversationId)).extracting(message -> message.getText())
+                    .containsExactlyElementsOf(expected);
+            assertThat(new JdbcTemplate(dataSource(mysql)).queryForObject("""
+                    SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY WHERE conversation_id = ?
+                    """, Long.class, conversationId)).isEqualTo(20L);
+        }
+        System.out.println("Chat restart: prior user and assistant messages restored in order; other sessions and accounts isolated; window retained exactly 20 messages.");
+    }
+
+    private static class CapturedPrompts {
+        private final List<List<String>> messages = new ArrayList<>();
+    }
+
+    @TestConfiguration
+    static class SimulatedChat {
+        @Bean
+        CapturedPrompts capturedPrompts() {
+            return new CapturedPrompts();
+        }
+
+        @Bean
+        @Primary
+        ChatClient.Builder simulatedChatBuilder(CapturedPrompts capture) {
+            var model = mock(ChatModel.class);
+            when(model.call(any(Prompt.class))).thenAnswer(invocation -> {
+                Prompt prompt = invocation.getArgument(0);
+                var messages = prompt.getInstructions().stream()
+                        .filter(message -> message.getMessageType() != MessageType.SYSTEM)
+                        .map(message -> message.getText()).toList();
+                capture.messages.add(messages);
+                return new ChatResponse(List.of(new Generation(
+                        new AssistantMessage("resposta: " + messages.getLast()))));
+            });
+            return ChatClient.builder(model);
+        }
+    }
 
     @Test
     void confirmsPersistedProposalAfterApplicationRestart() {
@@ -205,7 +294,9 @@ class MySqlMigrationTest {
                     List.of("2", "SQL", V2, true),
                     List.of("3", "SQL", V3, true),
                     List.of("4", "SQL", V4, true),
-                    List.of("5", "SQL", V5, true));
+                    List.of("5", "SQL", V5, true),
+                    List.of("6", "SQL", V6, true));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SHOW TABLES LIKE 'pending_transactions'")).hasSize(1);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
             assertThat(jdbc.queryForList("""
@@ -283,7 +374,9 @@ class MySqlMigrationTest {
                     migration -> assertThat(migration).containsExactly("2", "SQL", V2, true),
                     migration -> assertThat(migration).containsExactly("3", "SQL", V3, true),
                     migration -> assertThat(migration).containsExactly("4", "SQL", V4, true),
-                    migration -> assertThat(migration).containsExactly("5", "SQL", V5, true));
+                    migration -> assertThat(migration).containsExactly("5", "SQL", V5, true),
+                    migration -> assertThat(migration).containsExactly("6", "SQL", V6, true));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SELECT HEX(id) FROM users", String.class)).containsExactly(LEGACY_USER_ID);
             assertThat(jdbc.queryForList(ORIGINAL_TRANSACTIONS))
                     .usingRecursiveComparison().isEqualTo(originalTransactions);
@@ -357,8 +450,9 @@ class MySqlMigrationTest {
         return new DriverManagerDataSource(container.getJdbcUrl(), container.getUsername(), container.getPassword());
     }
 
-    private static ConfigurableApplicationContext startApplication(MySQLContainer container) {
+    private static ConfigurableApplicationContext startApplication(MySQLContainer container, Class<?>... extraSources) {
         return new SpringApplicationBuilder(BudgetingApplication.class)
+                .sources(extraSources)
                 .web(WebApplicationType.NONE)
                 .run("--spring.config.location=classpath:/application.properties",
                         "--spring.profiles.active=mysql-migration",

@@ -4,6 +4,8 @@ import dio.budgeting.domain.Category;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 
 import java.io.IOException;
@@ -21,10 +24,17 @@ import java.util.Map;
 public class FinancialChatClientConfiguration {
 
     @Bean
-    public ChatMemory financialChatMemory() {
+    public ChatMemory financialChatMemory(ChatMemoryRepository repository) {
         return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(repository)
                 .maxMessages(20)
                 .build();
+    }
+
+    @Bean
+    @Profile("test")
+    ChatMemoryRepository testChatMemoryRepository() {
+        return new InMemoryChatMemoryRepository();
     }
 
     @Bean
