@@ -12,6 +12,7 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Tag("mysql-migration")
 @Testcontainers
@@ -31,6 +33,11 @@ class MySqlMigrationTest {
 
     private static final String V1 = "V1__initial_schema.sql";
     private static final String V2 = "V2__add_transaction_type_and_occurred_at.sql";
+    private static final String V3 = "V3__create_users.sql";
+    private static final String INSERT_USER = """
+            INSERT INTO users (id, email, password_hash, created_at)
+            VALUES (UNHEX(?), ?, 'fixture-hash', '2025-01-02 03:04:05.123456')
+            """;
     private static final String ORIGINAL_TRANSACTIONS = """
             SELECT id, amount, category, created_at, description, source, user_id
             FROM transaction_entity ORDER BY id
@@ -47,10 +54,30 @@ class MySqlMigrationTest {
         try (var context = startApplication(mysql)) {
             assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
             assertThat(schema(jdbc)).hasSize(2);
-            assertThat(history(jdbc)).containsExactly(
+            var migrations = history(jdbc);
+            assertThat(migrations).containsExactly(
                     List.of("1", "SQL", V1, true),
-                    List.of("2", "SQL", V2, true));
-            System.out.println("Empty MySQL: V1 and V2 applied, SQL history recorded, Hibernate validated.");
+                    List.of("2", "SQL", V2, true),
+                    List.of("3", "SQL", V3, true));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
+            assertThat(jdbc.queryForList("""
+                    SELECT column_type FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND (
+                        (table_name = 'users' AND column_name = 'id') OR
+                        (table_name = 'transaction_entity' AND column_name = 'user_id')
+                    )
+                    """, String.class)).containsExactly("binary(16)", "binary(16)");
+
+            var email = "migration-test@example.invalid";
+            assertThat(jdbc.update(INSERT_USER, "00000000000000000000000000000001", email)).isEqualTo(1);
+            assertThatThrownBy(() -> jdbc.update(INSERT_USER, "00000000000000000000000000000002", email))
+                    .isInstanceOf(DuplicateKeyException.class)
+                    .hasMessageContaining("uk_users_email");
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isEqualTo(1L);
+
+            System.out.println("Empty MySQL history (version, type, script, success): " + migrations);
+            System.out.println("Empty MySQL: Hibernate validated; users started empty; UUID columns match; duplicate email rejected.");
+            System.out.println(jdbc.queryForMap("SHOW CREATE TABLE users").get("Create Table"));
         }
     }
 
@@ -80,13 +107,16 @@ class MySqlMigrationTest {
 
         try (var context = startApplication(mysql)) {
             assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
-            assertThat(history(jdbc)).satisfiesExactly(
+            var migrations = history(jdbc);
+            assertThat(migrations).satisfiesExactly(
                     baseline -> {
                         assertThat(baseline.get(0)).isEqualTo("1");
                         assertThat(baseline.get(1)).isEqualTo("BASELINE");
                         assertThat(baseline.get(3)).isEqualTo(true);
                     },
-                    migration -> assertThat(migration).containsExactly("2", "SQL", V2, true));
+                    migration -> assertThat(migration).containsExactly("2", "SQL", V2, true),
+                    migration -> assertThat(migration).containsExactly("3", "SQL", V3, true));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
             assertThat(jdbc.queryForList(ORIGINAL_TRANSACTIONS))
                     .usingRecursiveComparison().isEqualTo(originalTransactions);
             assertThat(jdbc.queryForList("SELECT * FROM conversation_sessions"))
@@ -100,7 +130,8 @@ class MySqlMigrationTest {
             });
             assertThat(transactions).extracting(transaction -> transaction.getOccurredAt())
                     .containsExactlyInAnyOrder(Instant.parse("2025-01-02T03:04:05.123456Z"), null);
-            System.out.println("Legacy MySQL: DDL matched V1 before baseline; BASELINE 1 and SQL V2 recorded; "
+            System.out.println("Legacy MySQL history (version, type, script, success): " + migrations);
+            System.out.println("Legacy MySQL: DDL matched V1 before baseline; users started empty; "
                     + "Hibernate validated; original rows preserved; both EXPENSE, "
                     + "occurred_at = 2025-01-02T03:04:05.123456Z and NULL.");
         }
