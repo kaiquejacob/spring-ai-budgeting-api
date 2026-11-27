@@ -31,7 +31,9 @@ public class ConfirmPendingTransactionUseCase {
                         proposal.description(),
                         proposal.amountInCents(),
                         proposal.category(),
-                        TransactionSource.AI
+                        TransactionSource.AI,
+                        proposal.effectiveType(),
+                        proposal.occurredAt()
                 )
         );
     }

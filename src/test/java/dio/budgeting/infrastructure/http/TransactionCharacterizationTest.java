@@ -151,7 +151,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldCreatePendingProposalFromAudioWithoutPersisting() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var result = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -192,7 +192,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldPersistValidConfirmationAndRejectSecondConfirmation() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -227,7 +227,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldRejectExpiredTokenAndKeepNoTransactions() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -247,7 +247,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldRejectTokenFromAnotherUserAndKeepNoTransactions() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -330,7 +330,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldNotPersistClarificationIntent() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(new TransactionAiResponse(
+        when(audioUseCase.execute(any(), any())).thenReturn(new TransactionAiResponse(
                 TransactionIntent.CLARIFICATION_NEEDED,
                 null,
                 null,
@@ -351,7 +351,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldNotPersistListTransactionsIntent() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(new TransactionAiResponse(
+        when(audioUseCase.execute(any(), any())).thenReturn(new TransactionAiResponse(
                 TransactionIntent.LIST_TRANSACTIONS,
                 null,
                 null,
@@ -372,7 +372,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldReturnAiProcessingFailureStatusWithoutPersisting() throws Exception {
-        when(audioUseCase.execute(any()))
+        when(audioUseCase.execute(any(), any()))
                 .thenThrow(new AiProcessingException("Falha simulada da IA."));
 
         mockMvc.perform(multipart("/transactions/ai")

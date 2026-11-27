@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -26,14 +28,17 @@ public class ProcessReceiptImageUseCase {
     private final GeminiProperties geminiProperties;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
     public ProcessReceiptImageUseCase(
             GeminiProperties geminiProperties,
             RestClient.Builder restClientBuilder,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            Clock clock
     ) {
         this.geminiProperties = geminiProperties;
         this.objectMapper = objectMapper;
+        this.clock = clock;
 
         this.restClient = restClientBuilder
                 .baseUrl(geminiProperties.baseUrl())
@@ -45,6 +50,7 @@ public class ProcessReceiptImageUseCase {
             Resource image,
             String mimeType
     ) {
+        var reference = ZonedDateTime.now(clock);
         try {
             var normalizedImage = ReceiptImageNormalizer.normalize(image, mimeType);
 
@@ -80,10 +86,14 @@ public class ProcessReceiptImageUseCase {
                                                     - Use apenas dados visíveis no recibo.
                                                     - amountInCents deve ser o valor total em centavos.
                                                     - Use apenas %s.
+                                                    - Para CREATE_TRANSACTION, inclua type (INCOME ou EXPENSE) e occurredOn
+                                                      (data civil no formato yyyy-MM-dd) quando houver evidência para cada campo.
+                                                    - Use %s como data local de referência para resolver datas relativas.
+                                                    - Omita type ou occurredOn quando a informação correspondente não estiver presente.
                                                     - Se não conseguir extrair valor ou categoria, use:
                                                       {"intent": "CLARIFICATION_NEEDED", "messageToUser": "Não foi possível identificar a transação."}
                                                     - Não invente dados.
-                                                    """.formatted(Category.allowedNamesInPortuguese())
+                                                    """.formatted(Category.allowedNamesInPortuguese(), reference.toLocalDate())
                                             ),
                                             Map.of(
                                                     "inline_data", Map.of(
@@ -106,7 +116,7 @@ public class ProcessReceiptImageUseCase {
                     .retrieve()
                     .body(String.class);
 
-            return parseResponse(response);
+            return parseResponse(response, reference);
         } catch (Exception exception) {
             log.error("Falha ao processar recibo com Gemini", exception);
 
@@ -117,7 +127,7 @@ public class ProcessReceiptImageUseCase {
         }
     }
 
-    private TransactionAiResponse parseResponse(String responseBody) {
+    private TransactionAiResponse parseResponse(String responseBody, ZonedDateTime reference) {
         try {
             var root = objectMapper.readTree(responseBody);
 
@@ -138,10 +148,10 @@ public class ProcessReceiptImageUseCase {
 
             var transaction = objectMapper.readValue(
                     text,
-                    TransactionAiResponse.class
+                    AiTransactionExtraction.class
             );
 
-            return validate(transaction);
+            return validate(transaction == null ? null : transaction.toResponse(reference));
         } catch (Exception exception) {
             log.warn("Falha ao interpretar resposta do Gemini", exception);
 

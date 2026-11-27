@@ -68,8 +68,8 @@ public record TransactionAiHttpResponse(
                         response.category().name(),
                         response.description(),
                         response.amountInCents() / 100.0,
-                        null,
-                        null
+                        response.effectiveType(),
+                        response.occurredAt()
                 ),
                 null,
                 null,

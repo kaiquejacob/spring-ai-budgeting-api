@@ -23,6 +23,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
 
@@ -77,7 +78,7 @@ class CategoryPromptRenderingTest {
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
         var useCase = new ProcessReceiptImageUseCase(
                 new GeminiProperties("test", "https://gemini.example", "test"),
-                builder, JsonMapper.builder().build());
+                builder, JsonMapper.builder().build(), Clock.systemUTC());
         var image = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB), "png", image);
 
