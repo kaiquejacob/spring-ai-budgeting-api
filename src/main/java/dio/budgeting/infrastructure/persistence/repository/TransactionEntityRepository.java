@@ -23,9 +23,9 @@ public interface TransactionEntityRepository
         from TransactionEntity t
         where t.userId = :userId
           and t.category = :category
-          and t.createdAt between :startDate and :endDate
+          and t.occurredAt between :startDate and :endDate
         """)
-    long sumAmountByUserIdCategoryAndCreatedAtBetween(
+    long sumAmountByUserIdCategoryAndOccurredAtBetween(
             @Param("userId") UUID userId,
             @Param("category") Category category,
             @Param("startDate") Instant startDate,

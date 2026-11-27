@@ -43,14 +43,14 @@ public class JpaTransactionRepository implements TransactionRepository {
     }
 
     @Override
-    public long sumAmountByUserIdCategoryAndCreatedAtBetween(
+    public long sumAmountByUserIdCategoryAndOccurredAtBetween(
             UUID userId,
             Category category,
             Instant startDate,
             Instant endDate
     ) {
         return transactionEntityRepository
-                .sumAmountByUserIdCategoryAndCreatedAtBetween(
+                .sumAmountByUserIdCategoryAndOccurredAtBetween(
                         userId,
                         category,
                         startDate,

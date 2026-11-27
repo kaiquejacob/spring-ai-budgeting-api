@@ -240,14 +240,22 @@ Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 
 ### Migração do schema MySQL
 
-Em um banco vazio, o Flyway aplica `V1__initial_schema.sql` na inicialização e o
-Hibernate valida o schema. Em um banco legado, a V1 só pode ser marcada como
-baseline depois da conferência abaixo. O baseline automático fica desativado.
+Em um banco vazio, o Flyway aplica a V1 e a V2 na inicialização e o Hibernate
+valida o schema. Em um banco legado, a V1 só pode ser marcada como baseline
+depois da conferência abaixo. O baseline automático fica desativado. A V2
+preenche `type` com `EXPENSE` e copia `created_at` para `occurred_at`, inclusive
+quando o valor histórico é nulo.
+
+No cadastro manual, `POST /transactions` aceita `type` (`INCOME` ou `EXPENSE`)
+e `occurredAt` (instante ISO 8601, como `2026-11-22T15:00:00Z`). Quando
+omitidos, o padrão é `EXPENSE` e o instante de criação. Os totais por período
+usam a data de ocorrência e as transações recentes são ordenadas pela criação.
 
 Para demonstrar os dois cenários em MySQL 8.4 descartável, execute
 `./gradlew mysqlMigrationTest` (`.\gradlew.bat mysqlMigrationTest` no Windows).
-O Testcontainers cria bancos isolados, aplica a V1 no banco vazio e demonstra
-a comparação do schema e o baseline explícito com dados de exemplo no legado.
+O Testcontainers cria bancos isolados, aplica V1 e V2 no banco vazio e
+demonstra a comparação do schema, o baseline explícito e a aplicação da V2 no
+legado com dados de exemplo.
 O comando exige Docker disponível e falha se o Docker estiver indisponível.
 
 Para preparar um banco legado, pause as escritas e confirme host, porta, schema
@@ -262,8 +270,10 @@ mysqldump "${mysql_target[@]}" --single-transaction --no-tablespaces --set-gtid-
 ```
 
 Valide o backup restaurando-o em outro banco descartável. Provisione também um
-schema vazio em MySQL 8.4 com os mesmos padrões de charset e collation e aplique
-a V1 nele. Compare o `SHOW CREATE TABLE` das duas tabelas do legado com o da V1,
+schema vazio em MySQL 8.4 com os mesmos padrões de charset e collation. Com a
+CLI apontada para esse schema descartável, execute
+`flyway -locations=filesystem:src/main/resources/db/migration -target=1 migrate`.
+Compare o `SHOW CREATE TABLE` das duas tabelas do legado com o da V1,
 incluindo colunas, tipos, nulabilidade, chaves, índices, UUIDs, enums e precisão
 dos timestamps. Com `mysql_reference` configurado para o destino descartável
 no login path `budgeting-reference` e `REFERENCE_DB` definido para o schema migrado:
@@ -289,9 +299,10 @@ flyway -locations=filesystem:src/main/resources/db/migration info
 mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank;'
 ```
 
-Confira a linha `1 / BASELINE / 1` e compare os dados das duas tabelas com o
-backup. Inicie a aplicação no mesmo destino e confirme que a validação do
-Hibernate conclui antes de retomar as escritas.
+Confira a linha `1 / BASELINE / 1`. Inicie a aplicação no mesmo destino para
+aplicar a V2 e validar o schema com o Hibernate. Antes de retomar as escritas,
+confira a linha `2 / SQL / 1`, compare as colunas originais das duas tabelas com
+o backup e confira o preenchimento de `type` e `occurred_at`.
 
 ---
 

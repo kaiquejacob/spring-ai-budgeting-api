@@ -13,7 +13,7 @@ public interface TransactionRepository {
             Category category
     );
 
-    long sumAmountByUserIdCategoryAndCreatedAtBetween(
+    long sumAmountByUserIdCategoryAndOccurredAtBetween(
             UUID userId,
             Category category,
             Instant startDate,

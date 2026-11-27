@@ -4,6 +4,7 @@ import dio.budgeting.domain.Category;
 import dio.budgeting.domain.Transaction;
 import dio.budgeting.domain.TransactionId;
 import dio.budgeting.domain.TransactionSource;
+import dio.budgeting.domain.TransactionType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -35,6 +36,12 @@ public class TransactionEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TransactionType type;
+
+    private Instant occurredAt;
+
     public static TransactionEntity from(Transaction transaction) {
         return new TransactionEntity(
                 transaction.getId().uuid(),
@@ -43,7 +50,9 @@ public class TransactionEntity {
                 transaction.getCategory(),
                 transaction.getSource(),
                 transaction.getCreatedAt(),
-                transaction.getUserId()
+                transaction.getUserId(),
+                transaction.getType(),
+                transaction.getOccurredAt()
         );
     }
 
@@ -55,7 +64,9 @@ public class TransactionEntity {
                 this.category,
                 this.source,
                 this.createdAt,
-                this.userId
+                this.userId,
+                this.type,
+                this.occurredAt
         );
     }
 

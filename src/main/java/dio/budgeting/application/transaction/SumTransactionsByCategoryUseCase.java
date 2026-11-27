@@ -32,7 +32,7 @@ public class SumTransactionsByCategoryUseCase {
     ) {
         var transactionPeriod = TransactionPeriod.from(period, clock);
 
-        return transactionRepository.sumAmountByUserIdCategoryAndCreatedAtBetween(
+        return transactionRepository.sumAmountByUserIdCategoryAndOccurredAtBetween(
                 userId,
                 category,
                 transactionPeriod.startDate(),

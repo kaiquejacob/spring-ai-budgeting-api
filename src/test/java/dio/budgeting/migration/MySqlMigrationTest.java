@@ -1,6 +1,9 @@
 package dio.budgeting.migration;
 
 import dio.budgeting.BudgetingApplication;
+import dio.budgeting.domain.Category;
+import dio.budgeting.domain.TransactionRepository;
+import dio.budgeting.domain.TransactionType;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
@@ -16,13 +19,22 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("mysql-migration")
 @Testcontainers
 class MySqlMigrationTest {
+
+    private static final String V1 = "V1__initial_schema.sql";
+    private static final String V2 = "V2__add_transaction_type_and_occurred_at.sql";
+    private static final String ORIGINAL_TRANSACTIONS = """
+            SELECT id, amount, category, created_at, description, source, user_id
+            FROM transaction_entity ORDER BY id
+            """;
 
     @Container
     private final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
@@ -35,12 +47,10 @@ class MySqlMigrationTest {
         try (var context = startApplication(mysql)) {
             assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
             assertThat(schema(jdbc)).hasSize(2);
-            assertThat(jdbc.queryForList("""
-                    SELECT version, type, script, success FROM flyway_schema_history
-                    """).stream().map(row -> List.of(row.get("version"), row.get("type"),
-                    row.get("script"), row.get("success"))))
-                    .containsExactly(List.of("1", "SQL", "V1__initial_schema.sql", true));
-            System.out.println("Empty MySQL: V1 applied, SQL history recorded, Hibernate validated.");
+            assertThat(history(jdbc)).containsExactly(
+                    List.of("1", "SQL", V1, true),
+                    List.of("2", "SQL", V2, true));
+            System.out.println("Empty MySQL: V1 and V2 applied, SQL history recorded, Hibernate validated.");
         }
     }
 
@@ -51,33 +61,56 @@ class MySqlMigrationTest {
                 new ClassPathResource("migration/legacy-data.sql")).execute(legacyDataSource);
 
         var jdbc = new JdbcTemplate(legacyDataSource);
-        var originalTransactions = jdbc.queryForList("SELECT * FROM transaction_entity");
+        var originalTransactions = jdbc.queryForList(ORIGINAL_TRANSACTIONS);
         var originalSessions = jdbc.queryForList("SELECT * FROM conversation_sessions");
-        assertThat(originalTransactions).hasSize(1);
+        assertThat(originalTransactions).hasSize(2);
         assertThat(originalSessions).hasSize(1);
         assertThat(jdbc.queryForList("SHOW TABLES LIKE 'flyway_schema_history'")).isEmpty();
 
         try (var reference = new MySQLContainer("mysql:8.4")) {
             reference.start();
-            Flyway.configure().dataSource(dataSource(reference)).load().migrate();
-            assertThat(schema(jdbc)).containsExactlyElementsOf(schema(new JdbcTemplate(dataSource(reference))));
+            var referenceDataSource = dataSource(reference);
+            Flyway.configure().dataSource(referenceDataSource).target("1").load().migrate();
+            var referenceJdbc = new JdbcTemplate(referenceDataSource);
+            assertThat(history(referenceJdbc)).containsExactly(List.of("1", "SQL", V1, true));
+            assertThat(schema(jdbc)).containsExactlyElementsOf(schema(referenceJdbc));
         }
 
         Flyway.configure().dataSource(legacyDataSource).baselineVersion("1").load().baseline();
 
         try (var context = startApplication(mysql)) {
             assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
-            assertThat(jdbc.queryForList("""
-                    SELECT version, type, success FROM flyway_schema_history
-                    """).stream().map(row -> List.of(row.get("version"), row.get("type"), row.get("success"))))
-                    .containsExactly(List.of("1", "BASELINE", true));
-            assertThat(jdbc.queryForList("SELECT * FROM transaction_entity"))
+            assertThat(history(jdbc)).satisfiesExactly(
+                    baseline -> {
+                        assertThat(baseline.get(0)).isEqualTo("1");
+                        assertThat(baseline.get(1)).isEqualTo("BASELINE");
+                        assertThat(baseline.get(3)).isEqualTo(true);
+                    },
+                    migration -> assertThat(migration).containsExactly("2", "SQL", V2, true));
+            assertThat(jdbc.queryForList(ORIGINAL_TRANSACTIONS))
                     .usingRecursiveComparison().isEqualTo(originalTransactions);
             assertThat(jdbc.queryForList("SELECT * FROM conversation_sessions"))
                     .usingRecursiveComparison().isEqualTo(originalSessions);
-            System.out.println("Legacy MySQL: SHOW CREATE TABLE matched V1 before baseline; "
-                    + "BASELINE 1 recorded, Hibernate validated, both rows preserved.");
+
+            var transactions = context.getBean(TransactionRepository.class).findByUserIdAndCategory(
+                    UUID.fromString("00000000-0000-0000-0000-000000000010"), Category.GROCERIES);
+            assertThat(transactions).hasSize(2).allSatisfy(transaction -> {
+                assertThat(transaction.getType()).isEqualTo(TransactionType.EXPENSE);
+                assertThat(transaction.getOccurredAt()).isEqualTo(transaction.getCreatedAt());
+            });
+            assertThat(transactions).extracting(transaction -> transaction.getOccurredAt())
+                    .containsExactlyInAnyOrder(Instant.parse("2025-01-02T03:04:05.123456Z"), null);
+            System.out.println("Legacy MySQL: DDL matched V1 before baseline; BASELINE 1 and SQL V2 recorded; "
+                    + "Hibernate validated; original rows preserved; both EXPENSE, "
+                    + "occurred_at = 2025-01-02T03:04:05.123456Z and NULL.");
         }
+    }
+
+    private static List<List<Object>> history(JdbcTemplate jdbc) {
+        return jdbc.queryForList("""
+                SELECT version, type, script, success FROM flyway_schema_history ORDER BY installed_rank
+                """).stream().map(row -> List.of(row.get("version"), row.get("type"),
+                row.get("script"), row.get("success"))).toList();
     }
 
     private static List<String> schema(JdbcTemplate jdbc) {

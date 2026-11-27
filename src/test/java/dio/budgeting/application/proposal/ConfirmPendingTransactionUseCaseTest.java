@@ -6,10 +6,12 @@ import dio.budgeting.application.transaction.PersistTransactionInput;
 import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
+import dio.budgeting.domain.TransactionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,7 +49,9 @@ class ConfirmPendingTransactionUseCaseTest {
                 "transaction-id",
                 "Compra no mercado",
                 "GROCERIES",
-                25.90
+                25.90,
+                TransactionType.EXPENSE,
+                Instant.EPOCH
         );
         when(pendingTransactionService.consume(token, userId)).thenReturn(proposal);
         when(persistTransactionUseCase.execute(any(PersistTransactionInput.class)))

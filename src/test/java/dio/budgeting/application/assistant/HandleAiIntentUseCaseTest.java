@@ -4,9 +4,11 @@ import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
+import dio.budgeting.domain.TransactionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -293,6 +295,7 @@ class HandleAiIntentUseCaseTest {
     }
 
     private static TransactionOutput output() {
-        return new TransactionOutput("txn-1", "GROCERIES", "Compra", 25.0);
+        return new TransactionOutput("txn-1", "GROCERIES", "Compra", 25.0,
+                TransactionType.EXPENSE, Instant.EPOCH);
     }
 }
