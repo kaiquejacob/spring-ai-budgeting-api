@@ -139,18 +139,13 @@ function dismissActiveLoading() {
     return true;
 }
 
-export function addMessage(author, text, userMessage = false) {
-    const replacesLoading = !userMessage && dismissActiveLoading();
+export function createMessage(author, text, userMessage = false) {
     const article = element(
         "article",
         userMessage
             ? "message message-user"
             : "message message-assistant"
     );
-    article.classList.add(
-        replacesLoading ? "message-response" : "message-enter"
-    );
-
     article.append(
         element("span", "message-author", author),
         element(
@@ -160,6 +155,13 @@ export function addMessage(author, text, userMessage = false) {
         )
     );
 
+    return article;
+}
+
+export function addMessage(author, text, userMessage = false) {
+    const replacesLoading = !userMessage && dismissActiveLoading();
+    const article = createMessage(author, text, userMessage);
+    article.classList.add(replacesLoading ? "message-response" : "message-enter");
     dom.messages.append(article);
     updateWorkspaceState();
     scrollToLatest();

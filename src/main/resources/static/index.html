@@ -65,6 +65,7 @@
 
         <nav class="sidebar-navigation" aria-label="Conversas">
             <button
+                    id="assistant-navigation"
                     class="navigation-item navigation-item-active"
                     type="button"
                     aria-current="page"
@@ -76,6 +77,17 @@
                 <span class="active-indicator" aria-hidden="true"></span>
             </button>
         </nav>
+
+        <section class="recent-conversations" aria-labelledby="recent-heading">
+            <h2 id="recent-heading">Recentes</h2>
+            <button id="recent-toggle" class="navigation-item" type="button"
+                    aria-expanded="false" aria-controls="recent-content">Conversas recentes</button>
+            <div id="recent-content" class="recent-content">
+                <ul id="recent-items" class="recent-items"></ul>
+                <p id="recent-status" class="history-status" role="status"></p>
+                <button id="recent-more" class="navigation-item" type="button" hidden>Carregar mais</button>
+            </div>
+        </section>
 
         <div class="sidebar-footer">
             <div class="user-chip">
@@ -219,6 +231,22 @@
                         aria-relevant="additions"
                         aria-label="Mensagens da conversa"
                 ></section>
+            </div>
+        </div>
+    </main>
+
+    <main id="history-workspace" class="workspace" aria-labelledby="history-title" hidden>
+        <div id="history-scroll" class="conversation-scroll">
+            <div class="history-content">
+                <button id="history-back" class="navigation-item history-action" type="button">
+                    Voltar ao assistente
+                </button>
+                <h1 id="history-title" tabindex="-1">Histórico da conversa</h1>
+                <div id="history-messages" class="chat-messages" aria-label="Mensagens do histórico"></div>
+                <p id="history-status" class="history-status" role="status"></p>
+                <button id="history-more" class="navigation-item history-action" type="button" hidden>
+                    Carregar mais mensagens
+                </button>
             </div>
         </div>
     </main>

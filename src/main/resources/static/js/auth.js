@@ -2,6 +2,7 @@ import { getAccount, invalidateCsrf, login, logout, registerAccount } from "./ap
 import { dom, errorMessage, showError } from "./dom.js";
 import { clearConversation } from "./render.js";
 import { state } from "./state.js";
+import { clearHistory, refreshRecent } from "./history.js";
 
 const app = document.querySelector("#assistant-app");
 const access = document.querySelector("#access");
@@ -62,6 +63,7 @@ function showAccount(account) {
     access.hidden = true;
     app.hidden = false;
     dom.input.focus();
+    refreshRecent();
 }
 
 function endSession(message) {
@@ -69,6 +71,7 @@ function endSession(message) {
     state.accountSession = null;
     invalidateCsrf();
     app.hidden = true;
+    clearHistory();
     clearConversation();
     userEmail.textContent = "";
     userEmail.removeAttribute("title");

@@ -9,6 +9,7 @@ import {
     updateAttachmentPreview
 } from "./upload.js";
 import { updateWorkspaceState } from "./render.js";
+import { initializeHistory } from "./history.js";
 
 dom.form.addEventListener("submit", submitMessage);
 
@@ -73,4 +74,5 @@ dom.newConversationButton.addEventListener("click", resetConversation);
 updateWorkspaceState();
 updateAttachmentPreview();
 updateControls();
+initializeHistory();
 initializeAuth();

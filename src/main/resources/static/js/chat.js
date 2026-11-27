@@ -19,6 +19,7 @@ import {
 import { state } from "./state.js";
 import { expireSession } from "./auth.js";
 import { updateAttachmentPreview } from "./upload.js";
+import { refreshRecent, returnToAssistant } from "./history.js";
 
 function beginOperation(message) {
     state.busy = true;
@@ -142,6 +143,7 @@ export async function submitMessage(event) {
 
         updateSession(data.sessionId);
         addMessage("Assistente", data.answer);
+        refreshRecent();
     } catch (error) {
         if (stopForSessionChange(signal, error)) return;
         showLoadingError(errorMessage(error));
@@ -195,6 +197,7 @@ async function submitAttachment(message, signal) {
 
             updateSession(chatResponse.sessionId);
             addMessage("Assistente", chatResponse.answer);
+            refreshRecent();
             messageDelivered = true;
             showLoading(operationMessage);
         }
@@ -257,5 +260,6 @@ export function resetConversation() {
     }
 
     clearConversation();
+    returnToAssistant();
     dom.input.focus();
 }

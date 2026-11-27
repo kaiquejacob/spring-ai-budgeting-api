@@ -79,6 +79,14 @@ async function request(path, sessionId, options = {}) {
     return data;
 }
 
+export function getConversations(page, signal) {
+    return request(`/conversations?page=${page}`, null, { signal });
+}
+
+export function getConversationMessages(id, page, signal) {
+    return request(`/conversations/${encodeURIComponent(id)}/messages?page=${page}`, null, { signal });
+}
+
 export async function getAccount() {
     const account = await request("/auth/me");
     if (typeof account?.id !== "string" || !account.id ||
