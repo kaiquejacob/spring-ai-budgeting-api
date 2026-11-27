@@ -3,11 +3,13 @@ package dio.budgeting.infrastructure.http.request;
 import dio.budgeting.application.transaction.PersistTransactionInput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionSource;
+import dio.budgeting.domain.TransactionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record TransactionRequest(
@@ -17,7 +19,9 @@ public record TransactionRequest(
         @NotNull(message = "Informe uma categoria.")
         Category category,
         @Positive(message = "O valor deve ser maior que zero.")
-        long amount
+        long amount,
+        TransactionType type,
+        Instant occurredAt
 ) {
 
     public PersistTransactionInput toInput(UUID userId) {
@@ -26,7 +30,9 @@ public record TransactionRequest(
                 description,
                 amount * 100,
                 category,
-                TransactionSource.MANUAL
+                TransactionSource.MANUAL,
+                type,
+                occurredAt
         );
     }
 }

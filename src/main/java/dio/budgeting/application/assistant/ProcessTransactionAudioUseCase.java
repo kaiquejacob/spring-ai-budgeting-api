@@ -3,6 +3,7 @@ package dio.budgeting.application.assistant;
 import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
+import dio.budgeting.domain.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
@@ -11,6 +12,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+
+import java.time.ZonedDateTime;
+import java.util.function.Supplier;
 
 @Service
 public class ProcessTransactionAudioUseCase {
@@ -28,20 +32,37 @@ public class ProcessTransactionAudioUseCase {
         this.chatClient = chatClient;
     }
 
-    public TransactionAiResponse execute(Resource audio) {
+    public TransactionAiResponse execute(Resource audio, ZonedDateTime reference) {
         var transcription = transcriptionModel.transcribe(audio);
-        return interpret(transcription);
+        return interpret(() -> {
+            var extraction = chatClient.prompt()
+                    .user("""
+                            Data local de referência: %s.
+                            Somente para CREATE_TRANSACTION, inclua type (INCOME ou EXPENSE) e occurredOn
+                            (data civil no formato yyyy-MM-dd) quando houver evidência para cada campo.
+                            Resolva datas relativas, como "ontem", a partir da data local de referência.
+                            Omita cada campo cuja informação não estiver presente. Não invente tipo nem data.
+                            Para as demais intenções, omita type e occurredOn e siga as regras de consulta.
+
+                            Transcrição:
+                            %s
+                            """.formatted(reference.toLocalDate(), transcription))
+                    .call()
+                    .entity(AiTransactionExtraction.class);
+            return extraction == null ? null : extraction.toResponse(reference);
+        });
     }
 
     public TransactionAiResponse interpret(String userMessage) {
-        try {
-            var aiResponse = chatClient
-                    .prompt()
-                    .user(userMessage)
-                    .call()
-                    .entity(TransactionAiResponse.class);
+        return interpret(() -> chatClient.prompt()
+                .user(userMessage)
+                .call()
+                .entity(TransactionAiResponse.class));
+    }
 
-            return validate(aiResponse);
+    private TransactionAiResponse interpret(Supplier<TransactionAiResponse> request) {
+        try {
+            return validate(request.get());
         } catch (
                 NonTransientAiException
                 | org.springframework.web.client.ResourceAccessException
@@ -101,7 +122,7 @@ public class ProcessTransactionAudioUseCase {
         }
 
         if (response.category() == null) {
-            return clarification("Informe uma categoria válida: GROCERIES, PHARMA ou AUTO.");
+            return clarification("Informe uma categoria válida: " + Category.allowedNamesInPortuguese() + ".");
         }
 
         return response;

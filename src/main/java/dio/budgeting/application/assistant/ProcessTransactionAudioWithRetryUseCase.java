@@ -8,6 +8,9 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.time.Clock;
+import java.time.ZonedDateTime;
+
 @Service
 public class ProcessTransactionAudioWithRetryUseCase {
 
@@ -15,21 +18,25 @@ public class ProcessTransactionAudioWithRetryUseCase {
             LoggerFactory.getLogger(ProcessTransactionAudioWithRetryUseCase.class);
 
     private final ProcessTransactionAudioUseCase processTransactionAudioUseCase;
+    private final Clock clock;
 
     public ProcessTransactionAudioWithRetryUseCase(
-            ProcessTransactionAudioUseCase processTransactionAudioUseCase
+            ProcessTransactionAudioUseCase processTransactionAudioUseCase,
+            Clock clock
     ) {
         this.processTransactionAudioUseCase = processTransactionAudioUseCase;
+        this.clock = clock;
     }
 
     public TransactionAiResponse execute(Resource audio) {
+        var reference = ZonedDateTime.now(clock);
         try {
-            return processTransactionAudioUseCase.execute(audio);
+            return processTransactionAudioUseCase.execute(audio, reference);
         } catch (ResourceAccessException exception) {
             log.warn("Transient AI call failure. Retrying once.", exception);
 
             try {
-                return processTransactionAudioUseCase.execute(audio);
+                return processTransactionAudioUseCase.execute(audio, reference);
             } catch (ResourceAccessException retryException) {
                 throw new AiProcessingException(
                         "AI provider is unavailable after retry.",

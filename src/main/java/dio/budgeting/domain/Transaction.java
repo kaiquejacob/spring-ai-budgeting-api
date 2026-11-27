@@ -3,7 +3,7 @@ package dio.budgeting.domain;
 import lombok.Getter;
 
 import java.time.Instant;
-import java.time.Clock;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -16,16 +16,21 @@ public class Transaction {
     private final TransactionSource source;
     private final Instant createdAt;
     private final UUID userId;
+    private final TransactionType type;
+    private final Instant occurredAt;
 
     public Transaction(
             String description,
             long amount,
             Category category,
             TransactionSource source,
+            Instant createdAt,
             UUID userId,
-            Clock clock
+            TransactionType type,
+            Instant occurredAt
     ) {
-        this(new TransactionId(), description, amount, category, source, clock.instant(), userId);
+        this(new TransactionId(), description, amount, category, source,
+                Objects.requireNonNull(createdAt), userId, type, Objects.requireNonNull(occurredAt));
     }
 
     public Transaction(
@@ -34,7 +39,10 @@ public class Transaction {
             long amount,
             Category category,
             TransactionSource source,
-            Instant createdAt, UUID userId
+            Instant createdAt,
+            UUID userId,
+            TransactionType type,
+            Instant occurredAt
     ) {
         this.userId = userId;
         validate(description, amount, category);
@@ -45,6 +53,8 @@ public class Transaction {
         this.category = category;
         this.source = source;
         this.createdAt = createdAt;
+        this.type = Objects.requireNonNull(type);
+        this.occurredAt = occurredAt;
     }
 
     private void validate(String description, long amount, Category category) {

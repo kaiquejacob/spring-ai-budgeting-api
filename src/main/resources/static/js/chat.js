@@ -9,6 +9,7 @@ import {
 import { confirmTransaction, sendAudio, sendChatMessage, sendReceipt } from "./api.js";
 import {
     addMessage,
+    renderConfirmation,
     renderFileResponse,
     showLoading,
     showLoadingError,
@@ -81,12 +82,7 @@ export async function confirmProposal(entry) {
 
         state.pendingProposal = null;
 
-        addMessage(
-            "Assistente",
-            typeof data.message === "string"
-                ? data.message
-                : "Transação registrada com sucesso."
-        );
+        renderConfirmation(data);
     } catch (error) {
         entry.state = "unverified";
         updateProposalBadge(entry, "Confirmação não verificada");

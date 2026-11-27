@@ -42,9 +42,8 @@ class TransactionConfirmationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        pendingService = new PendingTransactionService(
-                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
-        );
+        var clock = Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+        pendingService = new PendingTransactionService(clock);
         persistUseCase = mock(PersistTransactionUseCase.class);
         confirmPendingTransactionUseCase = new ConfirmPendingTransactionUseCase(
                 pendingService,
@@ -57,7 +56,7 @@ class TransactionConfirmationTest {
         controller = new TransactionController(
                 persistUseCase,
                 null,
-                new ProcessTransactionAudioWithRetryUseCase(audioUseCase),
+                new ProcessTransactionAudioWithRetryUseCase(audioUseCase, clock),
                 new HandleAiIntentUseCase(
                         null,
                         confirmPendingTransactionUseCase,
@@ -78,7 +77,7 @@ class TransactionConfirmationTest {
         session = new ConversationSession(
                 UUID.randomUUID(),
                 userId,
-                Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
+                clock
         );
 
         var proposal = new TransactionAiResponse(
@@ -99,7 +98,7 @@ class TransactionConfirmationTest {
         when(sessionService.getOrCreate(session.id(), userId))
                 .thenReturn(session);
 
-        when(audioUseCase.execute(any()))
+        when(audioUseCase.execute(any(), any()))
                 .thenReturn(new TransactionAiResponse(
                         TransactionIntent.CONFIRM_PENDING,
                         null,

@@ -39,6 +39,9 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
+      - name: Run MySQL migration tests
+        run: ./gradlew mysqlMigrationTest
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7

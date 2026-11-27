@@ -6,6 +6,9 @@ import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
 import dio.budgeting.application.ai.GeminiTextService;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
+import dio.budgeting.application.transaction.ListRecentTransactionsUseCase;
+import dio.budgeting.application.transaction.SumTransactionsByCategoryUseCase;
+import dio.budgeting.application.transaction.TransactionOutput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.persistence.repository.ConversationSessionJpaRepository;
 import dio.budgeting.infrastructure.persistence.repository.TransactionEntityRepository;
@@ -29,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.UUID;
@@ -65,6 +69,12 @@ class TransactionCharacterizationTest {
     @Autowired
     private MutableClock mutableClock;
 
+    @Autowired
+    private SumTransactionsByCategoryUseCase sumTransactions;
+
+    @Autowired
+    private ListRecentTransactionsUseCase recentTransactions;
+
     @MockitoBean
     private ProcessTransactionAudioUseCase audioUseCase;
 
@@ -88,8 +98,60 @@ class TransactionCharacterizationTest {
     }
 
     @Test
+    void shouldDefaultManualTransactionToExpenseAtCreationTime() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"description":"Groceries","category":"GROCERIES","amount":12}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("EXPENSE"))
+                .andExpect(jsonPath("$.occurredAt").value(START.toString()));
+    }
+
+    @Test
+    void shouldExposeExplicitTypeAndOccurrence() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"description":"Refund","category":"GROCERIES","amount":12,
+                                 "type":"INCOME","occurredAt":"2026-11-22T15:00:00Z"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("INCOME"))
+                .andExpect(jsonPath("$.occurredAt").value("2026-11-22T15:00:00Z"));
+    }
+
+    @Test
+    void shouldSumByOccurrenceAndKeepRecentTransactionsOrderedByCreation() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"description":"Today","category":"GROCERIES","amount":50}
+                                """))
+                .andExpect(status().isCreated());
+        mutableClock.advanceSeconds(60);
+        mockMvc.perform(post("/transactions")
+                        .header("X-User-Id", USER_1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"description":"Yesterday","category":"GROCERIES","amount":12,
+                                 "type":"INCOME","occurredAt":"2026-11-22T15:00:00Z"}
+                                """))
+                .andExpect(status().isCreated());
+
+        var user = UUID.fromString(USER_1);
+        assertEquals(1200L, sumTransactions.execute(user, Category.GROCERIES, TransactionAiResponse.AiPeriod.YESTERDAY));
+        assertEquals(List.of("Yesterday", "Today"),
+                recentTransactions.execute(user).stream().map(TransactionOutput::description).toList());
+    }
+
+    @Test
     void shouldCreatePendingProposalFromAudioWithoutPersisting() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var result = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -106,10 +168,10 @@ class TransactionCharacterizationTest {
     }
 
     @Test
-    void shouldCreatePendingProposalFromReceiptWithoutPersisting() throws Exception {
+    void shouldPersistReceiptWithDefaultsOnlyAfterConfirmation() throws Exception {
         when(receiptUseCase.execute(any(), any())).thenReturn(createProposal());
 
-        mockMvc.perform(multipart("/transactions/ai/receipt")
+        var proposal = mockMvc.perform(multipart("/transactions/ai/receipt")
                         .file(receiptFile())
                         .header("X-User-Id", USER_1))
                 .andExpect(status().isOk())
@@ -118,11 +180,19 @@ class TransactionCharacterizationTest {
                 .andReturn();
 
         assertEquals(0, transactionRepository.count());
+
+        mockMvc.perform(post("/transactions/{token}/confirm",
+                        tokenFrom(proposal.getResponse().getContentAsString()))
+                        .header("X-User-Id", USER_1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdTransaction.type").value("EXPENSE"))
+                .andExpect(jsonPath("$.createdTransaction.occurredAt").value(START.toString()));
+        assertEquals(1, transactionRepository.count());
     }
 
     @Test
     void shouldPersistValidConfirmationAndRejectSecondConfirmation() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -134,7 +204,8 @@ class TransactionCharacterizationTest {
         mockMvc.perform(post("/transactions/{token}/confirm", token)
                         .header("X-User-Id", USER_1))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.createdTransaction").exists());
+                .andExpect(jsonPath("$.createdTransaction.type").value("EXPENSE"))
+                .andExpect(jsonPath("$.createdTransaction.occurredAt").value(START.toString()));
 
         assertEquals(1, transactionRepository.count());
 
@@ -156,7 +227,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldRejectExpiredTokenAndKeepNoTransactions() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -176,7 +247,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldRejectTokenFromAnotherUserAndKeepNoTransactions() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(createProposal());
+        when(audioUseCase.execute(any(), any())).thenReturn(createProposal());
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
@@ -259,7 +330,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldNotPersistClarificationIntent() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(new TransactionAiResponse(
+        when(audioUseCase.execute(any(), any())).thenReturn(new TransactionAiResponse(
                 TransactionIntent.CLARIFICATION_NEEDED,
                 null,
                 null,
@@ -280,7 +351,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldNotPersistListTransactionsIntent() throws Exception {
-        when(audioUseCase.execute(any())).thenReturn(new TransactionAiResponse(
+        when(audioUseCase.execute(any(), any())).thenReturn(new TransactionAiResponse(
                 TransactionIntent.LIST_TRANSACTIONS,
                 null,
                 null,
@@ -301,7 +372,7 @@ class TransactionCharacterizationTest {
 
     @Test
     void shouldReturnAiProcessingFailureStatusWithoutPersisting() throws Exception {
-        when(audioUseCase.execute(any()))
+        when(audioUseCase.execute(any(), any()))
                 .thenThrow(new AiProcessingException("Falha simulada da IA."));
 
         mockMvc.perform(multipart("/transactions/ai")

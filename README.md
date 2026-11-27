@@ -237,6 +237,73 @@ Os testes cobrem domínio, serviços, sessões, confirmação de propostas, mem�
 
 Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 
+
+### Migração do schema MySQL
+
+Em um banco vazio, o Flyway aplica a V1 e a V2 na inicialização e o Hibernate
+valida o schema. Em um banco legado, a V1 só pode ser marcada como baseline
+depois da conferência abaixo. O baseline automático fica desativado. A V2
+preenche `type` com `EXPENSE` e copia `created_at` para `occurred_at`, inclusive
+quando o valor histórico é nulo.
+
+No cadastro manual, `POST /transactions` aceita `type` (`INCOME` ou `EXPENSE`)
+e `occurredAt` (instante ISO 8601, como `2026-11-22T15:00:00Z`). Quando
+omitidos, o padrão é `EXPENSE` e o instante de criação. Os totais por período
+usam a data de ocorrência e as transações recentes são ordenadas pela criação.
+
+Para demonstrar os dois cenários em MySQL 8.4 descartável, execute
+`./gradlew mysqlMigrationTest` (`.\gradlew.bat mysqlMigrationTest` no Windows).
+O Testcontainers cria bancos isolados, aplica V1 e V2 no banco vazio e
+demonstra a comparação do schema, o baseline explícito e a aplicação da V2 no
+legado com dados de exemplo.
+O comando exige Docker disponível e falha se o Docker estiver indisponível.
+
+Para preparar um banco legado, pause as escritas e confirme host, porta, schema
+e usuário com a mesma conexão que será usada pelo Flyway. Nos exemplos Bash,
+preencha `DB_HOST`, `DB_PORT`, `DB_USER` e `DB_NAME` com o destino conferido.
+Use `mysql_config_editor` para configurar o login path `budgeting-baseline`.
+
+```bash
+mysql_target=(--login-path=budgeting-baseline --protocol=TCP --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER")
+mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT DATABASE(), @@hostname, @@port, @@server_uuid, CURRENT_USER(); SHOW TABLES;'
+mysqldump "${mysql_target[@]}" --single-transaction --no-tablespaces --set-gtid-purged=OFF --result-file=budgeting-before-flyway.sql "$DB_NAME"
+```
+
+Valide o backup restaurando-o em outro banco descartável. Provisione também um
+schema vazio em MySQL 8.4 com os mesmos padrões de charset e collation. Com a
+CLI apontada para esse schema descartável, execute
+`flyway -locations=filesystem:src/main/resources/db/migration -target=1 migrate`.
+Compare o `SHOW CREATE TABLE` das duas tabelas do legado com o da V1,
+incluindo colunas, tipos, nulabilidade, chaves, índices, UUIDs, enums e precisão
+dos timestamps. Com `mysql_reference` configurado para o destino descartável
+no login path `budgeting-reference` e `REFERENCE_DB` definido para o schema migrado:
+
+```bash
+mysql_reference=(--login-path=budgeting-reference)
+ddl='SHOW CREATE TABLE conversation_sessions; SHOW CREATE TABLE transaction_entity;'
+mysql "${mysql_target[@]}" --batch --raw --skip-column-names "$DB_NAME" -e "$ddl" > legacy-schema.sql
+mysql "${mysql_reference[@]}" --batch --raw --skip-column-names "$REFERENCE_DB" -e "$ddl" > v1-schema.sql
+diff -u v1-schema.sql legacy-schema.sql
+```
+
+Prossiga somente se os schemas coincidirem e o legado ainda não tiver a tabela
+`flyway_schema_history`. Use a CLI do Flyway da mesma versão resolvida pelo
+Gradle (`./gradlew dependencyInsight --dependency flyway-core --configuration runtimeClasspath`).
+Configure `FLYWAY_USER` e `FLYWAY_PASSWORD` no ambiente da sessão para o destino
+conferido e execute a partir da raiz do repositório:
+
+```bash
+export FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}"
+flyway -locations=filesystem:src/main/resources/db/migration -baselineVersion=1 baseline
+flyway -locations=filesystem:src/main/resources/db/migration info
+mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank;'
+```
+
+Confira a linha `1 / BASELINE / 1`. Inicie a aplicação no mesmo destino para
+aplicar a V2 e validar o schema com o Hibernate. Antes de retomar as escritas,
+confira a linha `2 / SQL / 1`, compare as colunas originais das duas tabelas com
+o backup e confira o preenchimento de `type` e `occurred_at`.
+
 ---
 
 ## `LIMITAÇÕES CONHECIDAS`
