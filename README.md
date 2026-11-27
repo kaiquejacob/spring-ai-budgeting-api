@@ -37,7 +37,7 @@
 
 Aplicação de gestão financeira desenvolvida em Java 25 com Spring Boot 4 e Spring AI, composta por uma API REST e uma interface web em HTML, CSS e JavaScript.
 
-O projeto permite consultar movimentações em linguagem natural e preparar registros financeiros a partir de áudios e imagens de recibos.
+Com uma conta, você pode consultar suas movimentações em linguagem natural e preparar registros financeiros a partir de áudios e imagens de recibos. O Spring Security gerencia cadastro, login e logout por sessão. As senhas são armazenadas com BCrypt, e o backend usa a identidade da sessão para acessar as transações da conta.
 
 - 🎙️ Processamento de áudio: transcrição com Whisper e interpretação da intenção com Groq.
 - 🧾 Análise de recibos: extração de descrição, valor e categoria com Gemini.
@@ -51,7 +51,7 @@ As regras de negócio, os cálculos financeiros, o acesso ao banco e a persistê
 
 Os dados são armazenados em MySQL 8.4. O código está organizado em camadas de domínio, aplicação e infraestrutura, com uso de entidades, value objects e contratos de persistência.
 
-> Projeto de estudo e demonstração local. A versão atual não possui autenticação e não deve ser exposta publicamente com dados financeiros reais.
+> Projeto de estudo e demonstração local. Use dados de demonstração.
 
 
 ---
@@ -64,12 +64,21 @@ Os dados são armazenados em MySQL 8.4. O código está organizado em camadas de
 
 </div>
 
-A interface é servida pelo próprio Spring Boot em `src/main/resources/static`, sem etapa de build. O JavaScript usa módulos ES em `static/js` (`state`, `dom`, `render`, `upload`, `chat`, `motion` e `main`); os tokens de design ficam em [`static/css/tokens.css`](src/main/resources/static/css/tokens.css). Consulte também o [DESIGN.md](DESIGN.md).
+### Tela de acesso
+
+<div align="center">
+
+<img src="docs/images/login.png" alt="Tela de login do Gestão Financeira" width="1100">
+
+</div>
+
+A interface é servida pelo próprio Spring Boot em `src/main/resources/static`, sem etapa de build. O JavaScript usa módulos ES em `static/js`, com a autenticação em `auth.js` e as requisições em `api.js`. Os tokens de design ficam em [`static/css/tokens.css`](src/main/resources/static/css/tokens.css). Consulte também o [DESIGN.md](DESIGN.md).
 
 1. Acesse `http://localhost:8080/`.
-2. Faça perguntas sobre suas movimentações ou envie um recibo/áudio.
-3. Revise a resposta ou a proposta gerada.
-4. Confirme o registro somente quando os dados estiverem corretos.
+2. Em **Criar conta**, informe seu e-mail e uma senha de pelo menos oito caracteres. Após o cadastro, a tela volta ao login com o e-mail preenchido.
+3. Digite a senha e selecione **Entrar**. Se já tiver conta, comece por este passo.
+4. Faça perguntas sobre suas movimentações ou envie um recibo ou áudio. Revise a proposta antes de confirmar o registro.
+5. Para encerrar a sessão, selecione **Sair** junto ao seu e-mail.
 
 Formatos aceitos: recibos JPG/PNG e áudios MP3, M4A/WAV. Arquivos são processados por provedores externos de IA; evite dados pessoais desnecessários.
 
@@ -115,10 +124,11 @@ O chat financeiro utiliza ferramentas de consulta. Ele não registra transaçõe
 
 ## `SESSÕES E MEMÓRIA`
 
-- Sessões da aplicação são armazenadas no MySQL.
+- A sessão de autenticação é gerenciada pelo Spring Security e identificada pelo cookie `JSESSIONID`.
+- Sessões de conversa são armazenadas no MySQL e vinculadas à conta.
 - O chat mantém uma janela de até 20 mensagens em memória.
 - O histórico é separado pela combinação `userId:sessionId`.
-- Sessões expiram após 15 minutos sem uso.
+- Sessões de conversa expiram após 15 minutos sem uso.
 - Tokens de confirmação expiram após 5 minutos.
 - Histórico e tokens são perdidos quando a API é reiniciada.
 
@@ -128,7 +138,55 @@ O histórico ajuda na interpretação de perguntas de continuação, mas valores
 
 ## `ENDPOINTS DA API`
 
-Os endpoints de negócio exigem o header `X-User-Id` com um UUID. Esse identificador é informado pelo cliente e **não representa autenticação**.
+As rotas em `/transactions` exigem uma sessão autenticada. O backend obtém o UUID da conta a partir da sessão.
+
+### Autenticação e CSRF
+
+| Método e rota | Entrada | Resposta |
+|---|---|---|
+| `GET /auth/csrf` | Sem corpo, acessível antes do login | `200` com `{ "headerName": "X-CSRF-TOKEN", "token": "..." }` |
+| `POST /auth/register` | JSON com `email` e `password`, mais o header CSRF | `201` com `id` e `email`, `400` para dados inválidos ou `409` para e-mail duplicado |
+| `POST /auth/login` | Formulário `application/x-www-form-urlencoded` com `email` e `password`, mais o header CSRF | `204` sem corpo, com renovação da sessão, ou `401` para credenciais inválidas |
+| `GET /auth/me` | Cookie de sessão | `200` com `id` e `email` ou `401` sem sessão autenticada |
+| `POST /auth/logout` | Cookie e header CSRF, sem corpo | `204` sem corpo, com encerramento da sessão |
+
+Preserve o cookie `JSESSIONID` nas requisições ao mesmo servidor. No navegador,
+o cookie é enviado pelo próprio navegador em requisições de mesma origem e tem
+os atributos `HttpOnly` e `SameSite=Lax`. Antes do primeiro POST, obtenha o
+token em `GET /auth/csrf` e envie-o no header indicado por `headerName`. O mesmo
+header vale para uploads multipart. Após login ou logout, descarte o token
+anterior e consulte `GET /auth/csrf` novamente antes da próxima escrita. Nas
+rotas de negócio, `401` indica ausência de sessão autenticada e uma escrita
+autenticada com CSRF ausente ou inválido recebe `403`.
+
+Exemplo com PowerShell 7 para cadastro, login, consulta da conta e envio de
+recibo. Use um e-mail novo para executar o cadastro pela primeira vez.
+
+```powershell
+$base = 'http://localhost:8080'
+$email = Read-Host 'E-mail'
+$password = Read-Host 'Senha' -MaskInput
+$csrf = Invoke-RestMethod "$base/auth/csrf" -SessionVariable webSession
+$headers = @{ ($csrf.headerName) = $csrf.token }
+
+Invoke-RestMethod "$base/auth/register" -Method Post -WebSession $webSession -Headers $headers `
+    -ContentType 'application/json' -Body (@{ email = $email; password = $password } | ConvertTo-Json)
+Invoke-RestMethod "$base/auth/login" -Method Post -WebSession $webSession -Headers $headers `
+    -ContentType 'application/x-www-form-urlencoded' -Body @{ email = $email; password = $password }
+Remove-Variable password
+
+Invoke-RestMethod "$base/auth/me" -WebSession $webSession
+$csrf = Invoke-RestMethod "$base/auth/csrf" -WebSession $webSession
+$headers = @{ ($csrf.headerName) = $csrf.token }
+Invoke-RestMethod "$base/transactions/ai/receipt" -Method Post -WebSession $webSession -Headers $headers `
+    -Form @{ file = Get-Item './recibo.png' }
+
+Invoke-RestMethod "$base/auth/logout" -Method Post -WebSession $webSession -Headers $headers
+$csrf = Invoke-RestMethod "$base/auth/csrf" -WebSession $webSession
+$headers = @{ ($csrf.headerName) = $csrf.token }
+```
+
+### Transações
 
 | Operação | Método / Endpoint |
 |---|---|
@@ -146,11 +204,12 @@ Recursos auxiliares:
 | Recurso | Endereço |
 |---|---|
 | Interface web | `GET /` |
-| Health check | `GET /actuator/health` |
-| Swagger UI | `/swagger-ui.html` |
-| OpenAPI | `/v3/api-docs` |
+| Health check (autenticado) | `GET /actuator/health` |
+| Swagger UI (autenticado) | `/swagger-ui.html` |
+| OpenAPI (autenticado) | `/v3/api-docs` |
 
-Para manter o contexto, reutilize o `sessionId` retornado pela API:
+Para manter o contexto de conversa, reutilize o `sessionId` retornado pela API
+na mesma conta. Esse parâmetro é separado do cookie de autenticação.
 
 ```text
 POST /transactions/ai/chat?sessionId=UUID_DA_SESSAO
@@ -199,13 +258,21 @@ Após alterações no código, reconstrua a imagem com o mesmo comando.
 
 ### Banco com Docker e aplicação local
 
-```bash
-docker compose up -d mysql
-```
+Para uma instalação nova ou dados de demonstração, provisione o schema vazio
+`budgeting_login_dev` no MySQL do Compose e conceda acesso ao usuário da
+aplicação. O Flyway aplica V1 a V4 na inicialização. Para usar um banco com
+dados existentes, confira primeiro o [procedimento de migração](#migração-do-schema-mysql),
+incluindo a checagem de transações órfãs antes da V4.
+
+No PowerShell, inicie o serviço MySQL e aponte o Spring para o schema local:
 
 ```powershell
-.\gradlew.bat bootRun
+docker compose up -d mysql
+.\gradlew.bat bootRun --args="--spring.docker.compose.enabled=false --spring.datasource.url=jdbc:mysql://localhost:3307/budgeting_login_dev"
 ```
+
+Se o usuário do schema for diferente do padrão local, configure
+`SPRING_DATASOURCE_USERNAME` e `SPRING_DATASOURCE_PASSWORD` no ambiente do processo.
 
 O `.env` é usado pelo Docker Compose, mas não é carregado automaticamente pelo `bootRun`. Configure as chaves no ambiente da IDE ou do processo.
 
@@ -323,26 +390,15 @@ a V4 e validar o schema com o Hibernate. Antes de retomar as escritas, confira
 as linhas `2 / SQL / 1`, `3 / SQL / 1` e `4 / SQL / 1`, compare as colunas
 originais com o backup e confira o preenchimento de `type` e `occurred_at`.
 
-Para demonstração local, inicie apenas o MySQL com Docker Compose. Em uma
-conexão administrativa autorizada, provisione um schema novo e vazio, por
-exemplo `budgeting_demo`, e conceda acesso a ele ao usuário da aplicação.
-Use as credenciais desse usuário no ambiente do Spring e aponte a aplicação
-explicitamente para o schema de demonstração:
-
-```bash
-docker compose up -d mysql
-./gradlew bootRun --args='--spring.docker.compose.enabled=false --spring.datasource.url=jdbc:mysql://localhost:3307/budgeting_demo'
-```
-
-Cadastre uma conta pelo fluxo normal e use-a para criar transações de
-demonstração.
+Para dados de demonstração, use o schema vazio `budgeting_login_dev` conforme
+[a configuração local](#banco-com-docker-e-aplicação-local). Cadastre uma conta
+pela interface e use-a para criar transações.
 
 ---
 
 ## `LIMITAÇÕES CONHECIDAS`
 
-- Não há autenticação; `X-User-Id` pode ser alterado pelo cliente.
-- A interface utiliza um UUID de demonstração fixo em `static/js/api.js`.
+- A sessão de login fica no servidor e exige novo login após reiniciar a aplicação.
 - Histórico do chat e tokens ficam em memória e são perdidos no reinício.
 - Memória e tokens locais não oferecem coordenação entre múltiplas instâncias.
 - Consumo do token e persistência não formam uma operação atômica.
@@ -385,8 +441,10 @@ O estudo Groq × Gemini está disponível em [`docs/ai-provider-comparison.md`](
 ## `EVOLUÇÕES PLANEJADAS`
 
 ```text
-[ ] Cadastro de usuários e autenticação com Spring Security
-[ ] Substituir X-User-Id pela identidade autenticada
+[x] Cadastro, login e logout com Spring Security e proteção CSRF
+[x] Identidade autenticada nas rotas de transações
+[x] Tela de acesso e chip do usuário com logout
+[x] Chave estrangeira entre transações e contas
 [ ] Persistência do histórico do chat
 [ ] Confirmação idempotente e durável
 [ ] Gravação de áudio pelo navegador
