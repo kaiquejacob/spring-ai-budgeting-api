@@ -55,6 +55,86 @@ textarea {
     display: none !important;
 }
 
+.access-shell {
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 24px 16px;
+}
+
+.access-column {
+    width: min(100%, 360px);
+}
+
+.access-column .access-mark {
+    width: 24px;
+    height: 24px;
+}
+
+.access-column h1 {
+    margin: 24px 0;
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.access-form,
+.access-field {
+    display: grid;
+}
+
+.access-form {
+    gap: 16px;
+}
+
+.access-field {
+    gap: 6px;
+}
+
+.access-field input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-input);
+    border-radius: var(--radius-small);
+    background: var(--input);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+}
+
+.access-primary {
+    width: 100%;
+    min-height: 44px;
+}
+
+.access-secondary,
+.user-logout {
+    border: 0;
+    border-radius: var(--radius-small);
+    background: transparent;
+}
+
+.access-secondary {
+    justify-self: center;
+    min-height: 44px;
+    padding: 0 12px;
+}
+
+.access-secondary:hover:not(:disabled),
+.user-logout:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+
+.access-feedback {
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+}
+
+.access-error {
+    color: var(--error-text);
+}
+
 .app-shell {
     display: grid;
     grid-template-columns: 240px minmax(0, 1fr);
@@ -253,9 +333,12 @@ textarea {
     white-space: nowrap;
 }
 
-.user-caption {
-    color: var(--text-secondary);
-    font-size: 11px;
+.user-logout {
+    flex: 0 0 auto;
+    min-height: 36px;
+    margin-left: auto;
+    padding: 0 8px;
+    font-size: 12px;
 }
 
 .workspace {
@@ -876,9 +959,14 @@ textarea {
         padding: 7px 10px;
     }
 
-    .sidebar-navigation,
-    .sidebar-footer {
+    .sidebar-navigation {
         display: none;
+    }
+
+    .sidebar-footer {
+        grid-column: 1 / -1;
+        padding: 0;
+        border: 0;
     }
 
     .conversation-content {

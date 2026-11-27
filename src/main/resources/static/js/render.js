@@ -1,11 +1,13 @@
 import {
+    clearError,
     dom,
     element,
     scrollToLatest,
     updateControls
 } from "./dom.js";
-import { sessionChanged, state } from "./state.js";
+import { resetConversationState, sessionChanged, state } from "./state.js";
 import { transitionWorkspace } from "./motion.js";
+import { updateAttachmentPreview } from "./upload.js";
 
 const currency = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -51,6 +53,23 @@ export function updateWorkspaceState() {
 }
 
 let activeLoading = null;
+
+export function clearConversation() {
+    resetConversationState();
+    state.busy = false;
+    activeLoading = null;
+    dom.messages.replaceChildren();
+    dom.input.value = "";
+    dom.status.textContent = "";
+    Object.values(dom.fileInputs).forEach((fileInput) => {
+        fileInput.value = "";
+    });
+    updateAttachmentPreview();
+    updateWorkspaceState();
+    clearError();
+    updateControls();
+    dom.scrollContainer.scrollTop = 0;
+}
 
 function removeLoadingAfterFade(loading) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
