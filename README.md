@@ -240,7 +240,7 @@ Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 
 ### Migração do schema MySQL
 
-Em um banco vazio, o Flyway aplica a V1 e a V2 na inicialização e o Hibernate
+Em um banco vazio, o Flyway aplica da V1 à V4 na inicialização e o Hibernate
 valida o schema. Em um banco legado, a V1 só pode ser marcada como baseline
 depois da conferência abaixo. O baseline automático fica desativado. A V2
 preenche `type` com `EXPENSE` e copia `created_at` para `occurred_at`, inclusive
@@ -251,11 +251,11 @@ e `occurredAt` (instante ISO 8601, como `2026-11-22T15:00:00Z`). Quando
 omitidos, o padrão é `EXPENSE` e o instante de criação. Os totais por período
 usam a data de ocorrência e as transações recentes são ordenadas pela criação.
 
-Para demonstrar os dois cenários em MySQL 8.4 descartável, execute
+Para demonstrar os cenários em MySQL 8.4 descartável, execute
 `./gradlew mysqlMigrationTest` (`.\gradlew.bat mysqlMigrationTest` no Windows).
-O Testcontainers cria bancos isolados, aplica V1 e V2 no banco vazio e
-demonstra a comparação do schema, o baseline explícito e a aplicação da V2 no
-legado com dados de exemplo.
+O Testcontainers cria bancos isolados, aplica V1 a V4 no banco vazio, demonstra
+o baseline seguido da migração de um legado com conta correspondente e verifica
+que uma transação órfã impede a V4 sem perder a linha.
 O comando exige Docker disponível e falha se o Docker estiver indisponível.
 
 Para preparar um banco legado, pause as escritas e confirme host, porta, schema
@@ -299,10 +299,43 @@ flyway -locations=filesystem:src/main/resources/db/migration info
 mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank;'
 ```
 
-Confira a linha `1 / BASELINE / 1`. Inicie a aplicação no mesmo destino para
-aplicar a V2 e validar o schema com o Hibernate. Antes de retomar as escritas,
-confira a linha `2 / SQL / 1`, compare as colunas originais das duas tabelas com
-o backup e confira o preenchimento de `type` e `occurred_at`.
+Confira a linha `1 / BASELINE / 1` e aplique até a V3 antes de iniciar a aplicação
+com a V4. Em um banco já migrado até a V3, comece pela conferência de órfãos.
+
+```bash
+flyway -locations=filesystem:src/main/resources/db/migration -target=3 migrate
+mysql "${mysql_target[@]}" "$DB_NAME" -e '
+  SELECT HEX(t.user_id) AS user_id, COUNT(*) AS transactions
+  FROM transaction_entity t
+  LEFT JOIN users u ON u.id = t.user_id
+  WHERE u.id IS NULL
+  GROUP BY t.user_id;'
+```
+
+A V4 exige que cada `transaction_entity.user_id` corresponda ao `users.id` de
+uma conta existente. A consulta deve retornar zero linhas antes de aplicar a
+V4. Se houver órfãos, interrompa a migração até identificar e provisionar as
+contas reais com os UUIDs correspondentes. A V4 não altera as transações e
+restringe a exclusão de contas que possuem transações.
+
+Com o pré-requisito atendido, inicie a aplicação no mesmo destino para aplicar
+a V4 e validar o schema com o Hibernate. Antes de retomar as escritas, confira
+as linhas `2 / SQL / 1`, `3 / SQL / 1` e `4 / SQL / 1`, compare as colunas
+originais com o backup e confira o preenchimento de `type` e `occurred_at`.
+
+Para demonstração local, inicie apenas o MySQL com Docker Compose. Em uma
+conexão administrativa autorizada, provisione um schema novo e vazio, por
+exemplo `budgeting_demo`, e conceda acesso a ele ao usuário da aplicação.
+Use as credenciais desse usuário no ambiente do Spring e aponte a aplicação
+explicitamente para o schema de demonstração:
+
+```bash
+docker compose up -d mysql
+./gradlew bootRun --args='--spring.docker.compose.enabled=false --spring.datasource.url=jdbc:mysql://localhost:3307/budgeting_demo'
+```
+
+Cadastre uma conta pelo fluxo normal e use-a para criar transações de
+demonstração.
 
 ---
 
