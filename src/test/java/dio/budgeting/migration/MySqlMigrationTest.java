@@ -12,6 +12,7 @@ import dio.budgeting.application.proposal.RegisterPendingProposalUseCase;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.domain.TransactionType;
+import dio.budgeting.infrastructure.persistence.repository.ConversationHistoryRepository;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
@@ -42,7 +43,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -66,6 +69,8 @@ class MySqlMigrationTest {
     private static final String V4 = "V4__add_transaction_user_foreign_key.sql";
     private static final String V5 = "V5__create_pending_transactions.sql";
     private static final String V6 = "V6__create_spring_ai_chat_memory.sql";
+    private static final String V7 = "V7__create_conversation_exchanges.sql";
+    private static final Instant CHAT_TIME = Instant.parse("2026-11-27T15:00:00.123456Z");
     private static final String USER_FK = "fk_transaction_entity_user";
     private static final String LEGACY_USER_ID = "00000000000000000000000000000010";
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000010");
@@ -93,6 +98,12 @@ class MySqlMigrationTest {
             var result = context.getBean(FinancialChatUseCase.class).execute(OWNER, null, "pergunta inicial");
             assertThat(result.answer()).isEqualTo("resposta: pergunta inicial");
             sessionId = result.sessionId();
+            var jdbc = new JdbcTemplate(dataSource(mysql));
+            assertThat(jdbc.queryForList("""
+                    SELECT question, answer FROM conversation_exchanges WHERE conversation_id = UNHEX(?)
+                    """, sessionId.toString().replace("-", "")))
+                    .containsExactly(java.util.Map.of("question", "pergunta inicial",
+                            "answer", "resposta: pergunta inicial"));
         }
 
         try (var context = startApplication(mysql, SimulatedChat.class)) {
@@ -126,6 +137,27 @@ class MySqlMigrationTest {
                     SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY WHERE conversation_id = ?
                     """, Long.class, conversationId)).isEqualTo(20L);
         }
+        try (var context = startApplication(mysql, SimulatedChat.class)) {
+            var history = context.getBean(ConversationHistoryRepository.class);
+            assertThat(history.messages(sessionId, OWNER, 0, 20)).hasSize(12)
+                    .first().isEqualTo(new ConversationHistoryRepository.Exchange(
+                            "pergunta inicial", "resposta: pergunta inicial", CHAT_TIME));
+            assertThat(history.messages(sessionId, OWNER, 2, 10))
+                    .extracting(ConversationHistoryRepository.Exchange::question)
+                    .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, 10)
+                            .mapToObj(turn -> "janela " + turn).toList());
+            assertThat(history.list(OWNER, 0, 20)).hasSize(2)
+                    .contains(new ConversationHistoryRepository.Summary(sessionId, "pergunta inicial", CHAT_TIME));
+
+            var memory = context.getBean("financialChatMemory", ChatMemory.class);
+            assertThat(memory.get(OWNER + ":" + sessionId)).extracting(message -> message.getText())
+                    .doesNotContain("pergunta inicial", "resposta: pergunta inicial");
+            var chat = context.getBean(FinancialChatUseCase.class);
+            assertThatThrownBy(() -> chat.execute(OWNER, sessionId, "falha do modelo"))
+                    .isInstanceOf(IllegalStateException.class).hasMessage("provider unavailable");
+            assertThat(history.messages(sessionId, OWNER, 0, 20)).hasSize(12);
+        }
+        System.out.println("History restart: preserved all 12 exchanges including the first evicted from model memory.");
         System.out.println("Chat restart: prior user and assistant messages restored in order; other sessions and accounts isolated; window retained exactly 20 messages.");
     }
 
@@ -135,6 +167,12 @@ class MySqlMigrationTest {
 
     @TestConfiguration
     static class SimulatedChat {
+        @Bean
+        @Primary
+        Clock simulatedChatClock() {
+            return Clock.fixed(CHAT_TIME, ZoneOffset.UTC);
+        }
+
         @Bean
         CapturedPrompts capturedPrompts() {
             return new CapturedPrompts();
@@ -149,6 +187,11 @@ class MySqlMigrationTest {
                 var messages = prompt.getInstructions().stream()
                         .filter(message -> message.getMessageType() != MessageType.SYSTEM)
                         .map(message -> message.getText()).toList();
+                assertThat(org.springframework.transaction.support.TransactionSynchronizationManager
+                        .isActualTransactionActive()).isFalse();
+                if (messages.getLast().equals("falha do modelo")) {
+                    throw new IllegalStateException("provider unavailable");
+                }
                 capture.messages.add(messages);
                 return new ChatResponse(List.of(new Generation(
                         new AssistantMessage("resposta: " + messages.getLast()))));
@@ -295,7 +338,8 @@ class MySqlMigrationTest {
                     List.of("3", "SQL", V3, true),
                     List.of("4", "SQL", V4, true),
                     List.of("5", "SQL", V5, true),
-                    List.of("6", "SQL", V6, true));
+                    List.of("6", "SQL", V6, true),
+                    List.of("7", "SQL", V7, true));
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SHOW TABLES LIKE 'pending_transactions'")).hasSize(1);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
@@ -375,7 +419,9 @@ class MySqlMigrationTest {
                     migration -> assertThat(migration).containsExactly("3", "SQL", V3, true),
                     migration -> assertThat(migration).containsExactly("4", "SQL", V4, true),
                     migration -> assertThat(migration).containsExactly("5", "SQL", V5, true),
-                    migration -> assertThat(migration).containsExactly("6", "SQL", V6, true));
+                    migration -> assertThat(migration).containsExactly("6", "SQL", V6, true),
+                    migration -> assertThat(migration).containsExactly("7", "SQL", V7, true));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM conversation_exchanges", Long.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SELECT HEX(id) FROM users", String.class)).containsExactly(LEGACY_USER_ID);
             assertThat(jdbc.queryForList(ORIGINAL_TRANSACTIONS))
