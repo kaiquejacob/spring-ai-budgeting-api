@@ -12,6 +12,18 @@ const currency = new Intl.NumberFormat("pt-BR", {
     currency: "BRL"
 });
 
+const occurrenceDate = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+});
+
+const typeNames = {
+    INCOME: "Receita",
+    EXPENSE: "Despesa"
+};
+
 const categoryNames = {
     GROCERIES: "Mercado",
     PHARMA: "Farmácia",
@@ -172,6 +184,28 @@ function formatAmount(amount) {
         : "Valor não informado";
 }
 
+function formatType(type) {
+    return typeof type === "string" && Object.hasOwn(typeNames, type)
+        ? typeNames[type]
+        : "Tipo não informado";
+}
+
+function formatOccurrence(occurredAt) {
+    const isoTimestamp = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+    const match = typeof occurredAt === "string" ? isoTimestamp.exec(occurredAt) : null;
+    if (!match) {
+        return "Data não informada";
+    }
+
+    const timestamp = Date.parse(occurredAt);
+    const calendarDate = new Date(`${match[1]}T00:00:00Z`);
+    // Date.parse pode normalizar um dia inválido para o mês seguinte.
+    if (!Number.isFinite(timestamp) || calendarDate.toISOString().slice(0, 10) !== match[1]) {
+        return "Data não informada";
+    }
+    return occurrenceDate.format(timestamp);
+}
+
 function validateProposal(data) {
     const proposal = data.proposedTransaction;
 
@@ -225,6 +259,8 @@ export function renderProposal(data, origin) {
         categoryNames[proposal.category]
     );
 
+    addDetail(details, "Tipo", formatType(proposal.type));
+    addDetail(details, "Data da ocorrência", formatOccurrence(proposal.occurredAt));
     addDetail(details, "Origem da proposta", origin);
 
     const footer = element("div", "transaction-footer");
@@ -302,11 +338,30 @@ export function renderTransactionList(transactions) {
         return [
             description,
             `Valor: ${formatAmount(transaction.amount)}`,
-            `Categoria: ${category}`
+            `Categoria: ${category}`,
+            `Tipo: ${formatType(transaction.type)}`,
+            `Data da ocorrência: ${formatOccurrence(transaction.occurredAt)}`
         ].join("\n");
     }).join("\n\n");
 
     addMessage("Assistente", text);
+}
+
+export function renderConfirmation(data) {
+    const transaction = data.createdTransaction;
+
+    addMessage(
+        "Assistente",
+        [
+            typeof data.message === "string" && data.message
+                ? data.message
+                : "Transação registrada com sucesso.",
+            transaction.description || "",
+            formatAmount(transaction.amount),
+            `Tipo: ${formatType(transaction.type)}`,
+            `Data da ocorrência: ${formatOccurrence(transaction.occurredAt)}`
+        ].filter(Boolean).join("\n")
+    );
 }
 
 export function renderFileResponse(data, origin) {
@@ -318,14 +373,7 @@ export function renderFileResponse(data, origin) {
     }
 
     if (data.createdTransaction) {
-        addMessage(
-            "Assistente",
-            [
-                data.message || "Transação registrada.",
-                data.createdTransaction.description || "",
-                formatAmount(data.createdTransaction.amount)
-            ].filter(Boolean).join("\n")
-        );
+        renderConfirmation(data);
         return;
     }
 
