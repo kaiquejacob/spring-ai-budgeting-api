@@ -1,5 +1,25 @@
-// Usuário de demonstração local. Não representa autenticação.
-const DEMO_USER_ID = "11111111-1111-1111-1111-111111111111";
+let csrfRequest;
+
+export function invalidateCsrf() {
+    csrfRequest = undefined;
+}
+
+function getCsrf() {
+    if (!csrfRequest) {
+        const pending = request("/auth/csrf").then((data) => {
+            if (typeof data.headerName !== "string" || !data.headerName ||
+                typeof data.token !== "string" || !data.token) {
+                throw new Error("O servidor não retornou um token de segurança válido.");
+            }
+            return data;
+        });
+        csrfRequest = pending;
+        pending.catch(() => {
+            if (csrfRequest === pending) invalidateCsrf();
+        });
+    }
+    return csrfRequest;
+}
 
 function createUrl(path, sessionId) {
     const url = new URL(path, window.location.origin);
@@ -12,16 +32,22 @@ function createUrl(path, sessionId) {
 }
 
 async function request(path, sessionId, options = {}) {
+    const headers = new Headers(options.headers);
+    headers.set("Accept", "application/json");
+    const csrf = options.method === "POST" ? getCsrf() : null;
+    if (csrf) {
+        const { headerName, token } = await csrf;
+        headers.set(headerName, token);
+    }
+    options.signal?.throwIfAborted();
+
     let response;
 
     try {
         response = await fetch(createUrl(path, sessionId), {
             ...options,
-            headers: {
-                "Accept": "application/json",
-                "X-User-Id": DEMO_USER_ID,
-                ...options.headers
-            }
+            credentials: "same-origin",
+            headers
         });
     } catch {
         throw new Error(
@@ -29,14 +55,21 @@ async function request(path, sessionId, options = {}) {
         );
     }
 
+    if (response.status === 204) return null;
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-        throw new Error(
+        if (response.status === 403 && csrf && csrf === csrfRequest) invalidateCsrf();
+        const error = new Error(
             typeof data?.message === "string"
                 ? data.message
-                : `A solicitação falhou (HTTP ${response.status}).`
+                : response.status === 403
+                    ? "A solicitação foi bloqueada (403). Verifique os dados antes de tentar novamente."
+                    : `A solicitação falhou (HTTP ${response.status}).`
         );
+        error.status = response.status;
+        error.code = data?.error;
+        throw error;
     }
 
     if (!data || typeof data !== "object") {
@@ -46,12 +79,43 @@ async function request(path, sessionId, options = {}) {
     return data;
 }
 
-export async function sendChatMessage(message, sessionId) {
+export async function getAccount() {
+    const account = await request("/auth/me");
+    if (typeof account?.id !== "string" || !account.id ||
+        typeof account.email !== "string" || !account.email) {
+        throw new Error("O servidor não retornou os dados da conta.");
+    }
+    return account;
+}
+
+export function registerAccount(email, password) {
+    return request("/auth/register", null, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+    });
+}
+
+export async function login(email, password) {
+    await request("/auth/login", null, {
+        method: "POST",
+        body: new URLSearchParams({ email, password })
+    });
+    invalidateCsrf();
+}
+
+export async function logout(signal) {
+    await request("/auth/logout", null, { method: "POST", signal });
+    if (!signal.aborted) invalidateCsrf();
+}
+
+export async function sendChatMessage(message, sessionId, signal) {
     const data = await request(
         "/transactions/ai/chat",
         sessionId,
         {
             method: "POST",
+            signal,
             headers: {
                 "Content-Type": "application/json"
             },
@@ -73,12 +137,13 @@ export async function sendChatMessage(message, sessionId) {
     return data;
 }
 
-async function sendFile(path, file, sessionId) {
+async function sendFile(path, file, sessionId, signal) {
     const formData = new FormData();
     formData.append("file", file);
 
     const data = await request(path, sessionId, {
         method: "POST",
+        signal,
         body: formData
     });
 
@@ -95,28 +160,31 @@ async function sendFile(path, file, sessionId) {
     return data;
 }
 
-export function sendReceipt(file, sessionId) {
+export function sendReceipt(file, sessionId, signal) {
     return sendFile(
         "/transactions/ai/receipt",
         file,
-        sessionId
+        sessionId,
+        signal
     );
 }
 
-export function sendAudio(file, sessionId) {
+export function sendAudio(file, sessionId, signal) {
     return sendFile(
         "/transactions/ai",
         file,
-        sessionId
+        sessionId,
+        signal
     );
 }
 
-export async function confirmTransaction(token, sessionId) {
+export async function confirmTransaction(token, sessionId, signal) {
     const data = await request(
         `/transactions/${encodeURIComponent(token)}/confirm`,
         sessionId,
         {
-            method: "POST"
+            method: "POST",
+            signal
         }
     );
 

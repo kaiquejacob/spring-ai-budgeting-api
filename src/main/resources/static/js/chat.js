@@ -9,14 +9,15 @@ import {
 import { confirmTransaction, sendAudio, sendChatMessage, sendReceipt } from "./api.js";
 import {
     addMessage,
+    clearConversation,
     renderConfirmation,
     renderFileResponse,
     showLoading,
     showLoadingError,
-    updateSession,
-    updateWorkspaceState
+    updateSession
 } from "./render.js";
-import { resetConversationState, state } from "./state.js";
+import { state } from "./state.js";
+import { expireSession } from "./auth.js";
 import { updateAttachmentPreview } from "./upload.js";
 
 function beginOperation(message) {
@@ -31,6 +32,13 @@ function finishOperation() {
     dom.status.textContent = "";
     updateControls();
     dom.input.focus();
+}
+
+function stopForSessionChange(signal, error) {
+    if (signal.aborted) return true;
+    if (error.status !== 401) return false;
+    expireSession();
+    return true;
 }
 
 function updateProposalBadge(entry, text) {
@@ -52,8 +60,9 @@ function updateProposalBadge(entry, text) {
 }
 
 export async function confirmProposal(entry) {
+    const signal = state.accountSession?.signal;
     if (
-        state.busy ||
+        !signal || state.busy ||
         state.pendingProposal !== entry ||
         entry.state !== "pending"
     ) {
@@ -68,8 +77,10 @@ export async function confirmProposal(entry) {
     try {
         const data = await confirmTransaction(
             entry.token,
-            entry.sessionId
+            entry.sessionId,
+            signal
         );
+        if (signal.aborted) return;
 
         entry.state = "confirmed";
         entry.card.classList.add("is-confirmed");
@@ -84,6 +95,7 @@ export async function confirmProposal(entry) {
 
         renderConfirmation(data);
     } catch (error) {
+        if (stopForSessionChange(signal, error)) return;
         entry.state = "unverified";
         updateProposalBadge(entry, "Confirmação não verificada");
         entry.button.textContent = "Verifique as movimentações";
@@ -95,8 +107,10 @@ export async function confirmProposal(entry) {
             `${errorMessage(error)} Não houve reenvio automático.`
         );
     } finally {
-        entry.button.disabled = true;
-        finishOperation();
+        if (!signal.aborted) {
+            entry.button.disabled = true;
+            finishOperation();
+        }
     }
 }
 
@@ -104,13 +118,14 @@ export async function submitMessage(event) {
     event.preventDefault();
 
     const message = dom.input.value.trim();
+    const signal = state.accountSession?.signal;
 
-    if (state.busy || (!message && state.selectedAttachment === null)) {
+    if (!signal || state.busy || (!message && state.selectedAttachment === null)) {
         return;
     }
 
     if (state.selectedAttachment) {
-        await submitAttachment(message);
+        await submitAttachment(message, signal);
         return;
     }
 
@@ -122,11 +137,13 @@ export async function submitMessage(event) {
     showLoading(dom.status.textContent);
 
     try {
-        const data = await sendChatMessage(message, state.sessionId);
+        const data = await sendChatMessage(message, state.sessionId, signal);
+        if (signal.aborted) return;
 
         updateSession(data.sessionId);
         addMessage("Assistente", data.answer);
     } catch (error) {
+        if (stopForSessionChange(signal, error)) return;
         showLoadingError(errorMessage(error));
         userArticle.append(
             element(
@@ -139,11 +156,11 @@ export async function submitMessage(event) {
         dom.input.value = message;
         showError(errorMessage(error));
     } finally {
-        finishOperation();
+        if (!signal.aborted) finishOperation();
     }
 }
 
-async function submitAttachment(message) {
+async function submitAttachment(message, signal) {
     const attachment = state.selectedAttachment;
     const { file, kind } = attachment;
     const isReceipt = kind === "receipt";
@@ -173,10 +190,9 @@ async function submitAttachment(message) {
 
     try {
         if (message) {
-            const chatResponse = await sendChatMessage(
-                message,
-                state.sessionId
-            );
+            const chatResponse = await sendChatMessage(message, state.sessionId, signal);
+            if (signal.aborted) return;
+
             updateSession(chatResponse.sessionId);
             addMessage("Assistente", chatResponse.answer);
             messageDelivered = true;
@@ -184,13 +200,15 @@ async function submitAttachment(message) {
         }
 
         const data = isReceipt
-            ? await sendReceipt(file, state.sessionId)
-            : await sendAudio(file, state.sessionId);
+            ? await sendReceipt(file, state.sessionId, signal)
+            : await sendAudio(file, state.sessionId, signal);
+        if (signal.aborted) return;
 
         renderFileResponse(data, origin);
         state.selectedAttachment = null;
         updateAttachmentPreview();
     } catch (error) {
+        if (stopForSessionChange(signal, error)) return;
         showLoadingError(
             `${errorMessage(error)} Não houve reenvio automático.`
         );
@@ -217,7 +235,7 @@ async function submitAttachment(message) {
             `${errorMessage(error)} Não houve reenvio automático.`
         );
     } finally {
-        finishOperation();
+        if (!signal.aborted) finishOperation();
     }
 }
 
@@ -238,21 +256,6 @@ export function resetConversation() {
         }
     }
 
-    resetConversationState();
-
-    dom.messages.replaceChildren();
-    dom.input.value = "";
-    dom.status.textContent = "";
-
-    Object.values(dom.fileInputs).forEach((fileInput) => {
-        fileInput.value = "";
-    });
-
-    updateAttachmentPreview();
-    updateWorkspaceState();
-    clearError();
-    updateControls();
-
-    dom.scrollContainer.scrollTop = 0;
+    clearConversation();
     dom.input.focus();
 }

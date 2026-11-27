@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.UUID;
 
+import static dio.budgeting.infrastructure.http.AuthenticatedTestSession.authenticated;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -100,7 +101,7 @@ class TransactionCharacterizationTest {
     @Test
     void shouldDefaultManualTransactionToExpenseAtCreationTime() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"description":"Groceries","category":"GROCERIES","amount":12}
@@ -113,7 +114,7 @@ class TransactionCharacterizationTest {
     @Test
     void shouldExposeExplicitTypeAndOccurrence() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"description":"Refund","category":"GROCERIES","amount":12,
@@ -127,7 +128,7 @@ class TransactionCharacterizationTest {
     @Test
     void shouldSumByOccurrenceAndKeepRecentTransactionsOrderedByCreation() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"description":"Today","category":"GROCERIES","amount":50}
@@ -135,7 +136,7 @@ class TransactionCharacterizationTest {
                 .andExpect(status().isCreated());
         mutableClock.advanceSeconds(60);
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"description":"Yesterday","category":"GROCERIES","amount":12,
@@ -155,7 +156,7 @@ class TransactionCharacterizationTest {
 
         var result = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("CREATE_TRANSACTION"))
                 .andExpect(jsonPath("$.confirmationToken").isNotEmpty())
@@ -173,7 +174,7 @@ class TransactionCharacterizationTest {
 
         var proposal = mockMvc.perform(multipart("/transactions/ai/receipt")
                         .file(receiptFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("CREATE_TRANSACTION"))
                 .andExpect(jsonPath("$.confirmationToken").isNotEmpty())
@@ -183,7 +184,7 @@ class TransactionCharacterizationTest {
 
         mockMvc.perform(post("/transactions/{token}/confirm",
                         tokenFrom(proposal.getResponse().getContentAsString()))
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdTransaction.type").value("EXPENSE"))
                 .andExpect(jsonPath("$.createdTransaction.occurredAt").value(START.toString()));
@@ -196,13 +197,13 @@ class TransactionCharacterizationTest {
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andReturn();
         var token = tokenFrom(proposal.getResponse().getContentAsString());
 
         mockMvc.perform(post("/transactions/{token}/confirm", token)
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdTransaction.type").value("EXPENSE"))
                 .andExpect(jsonPath("$.createdTransaction.occurredAt").value(START.toString()));
@@ -210,7 +211,7 @@ class TransactionCharacterizationTest {
         assertEquals(1, transactionRepository.count());
 
         mockMvc.perform(post("/transactions/{token}/confirm", token)
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isNotFound());
 
         assertEquals(1, transactionRepository.count());
@@ -219,7 +220,7 @@ class TransactionCharacterizationTest {
     @Test
     void shouldRejectMissingTokenAndKeepNoTransactions() throws Exception {
         mockMvc.perform(post("/transactions/{token}/confirm", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isNotFound());
 
         assertEquals(0, transactionRepository.count());
@@ -231,7 +232,7 @@ class TransactionCharacterizationTest {
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andReturn();
         var token = tokenFrom(proposal.getResponse().getContentAsString());
@@ -239,7 +240,7 @@ class TransactionCharacterizationTest {
         mutableClock.advanceSeconds(301);
 
         mockMvc.perform(post("/transactions/{token}/confirm", token)
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isNotFound());
 
         assertEquals(0, transactionRepository.count());
@@ -251,13 +252,13 @@ class TransactionCharacterizationTest {
 
         var proposal = mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andReturn();
         var token = tokenFrom(proposal.getResponse().getContentAsString());
 
         mockMvc.perform(post("/transactions/{token}/confirm", token)
-                        .header("X-User-Id", USER_2))
+                        .with(authenticated(USER_2)))
                 .andExpect(status().isNotFound());
 
         assertEquals(0, transactionRepository.count());
@@ -277,7 +278,7 @@ class TransactionCharacterizationTest {
         when(callSpec.content()).thenReturn("Resposta financeira mockada.");
 
         var result = mockMvc.perform(post("/transactions/ai/chat")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"Qual é meu saldo?\"}"))
                 .andExpect(status().isOk())
@@ -307,7 +308,7 @@ class TransactionCharacterizationTest {
         when(callSpec.content()).thenReturn("Resposta financeira mockada.");
 
         var created = mockMvc.perform(post("/transactions/ai/chat")
-                        .header("X-User-Id", USER_1)
+                        .with(authenticated(USER_1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"Qual é meu saldo?\"}"))
                 .andExpect(status().isOk())
@@ -319,7 +320,7 @@ class TransactionCharacterizationTest {
 
         mockMvc.perform(post("/transactions/ai/chat")
                         .param("sessionId", sessionId)
-                        .header("X-User-Id", USER_2)
+                        .with(authenticated(USER_2))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"Qual é meu saldo?\"}"))
                 .andExpect(status().isForbidden());
@@ -342,7 +343,7 @@ class TransactionCharacterizationTest {
 
         mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("CLARIFICATION_NEEDED"));
 
@@ -363,7 +364,7 @@ class TransactionCharacterizationTest {
 
         mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.intent").value("LIST_TRANSACTIONS"));
 
@@ -377,7 +378,7 @@ class TransactionCharacterizationTest {
 
         mockMvc.perform(multipart("/transactions/ai")
                         .file(audioFile())
-                        .header("X-User-Id", USER_1))
+                        .with(authenticated(USER_1)))
                 .andExpect(status().isServiceUnavailable());
 
         assertEquals(0, transactionRepository.count());

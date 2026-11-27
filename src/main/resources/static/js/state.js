@@ -1,4 +1,5 @@
 export const state = {
+    accountSession: null,
     sessionId: null,
     busy: false,
     pendingProposal: null,

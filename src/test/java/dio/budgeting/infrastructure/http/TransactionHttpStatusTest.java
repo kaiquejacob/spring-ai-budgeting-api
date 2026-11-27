@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static dio.budgeting.infrastructure.http.AuthenticatedTestSession.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -47,7 +48,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldReturnBadRequestForZeroAmount() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -64,7 +65,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldReturnBadRequestForNegativeAmount() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -79,7 +80,7 @@ class TransactionHttpStatusTest {
     }
 
     @Test
-    void shouldReturnBadRequestWhenUserHeaderIsMissing() throws Exception {
+    void shouldReturnUnauthorizedWhenSessionIsMissing() throws Exception {
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -89,20 +90,20 @@ class TransactionHttpStatusTest {
                                   "amount": 10
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void shouldReturnBadRequestForInvalidCategoryPath() throws Exception {
         mockMvc.perform(get("/transactions/INVALID_CATEGORY")
-                        .header("X-User-Id", USER_ID))
+                        .with(authenticated(USER_ID)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void shouldReturnBadRequestForMalformedJson() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
                 .andExpect(status().isBadRequest());
@@ -111,7 +112,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldKeepCreatedStatusForValidTransaction() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -126,7 +127,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldReturnMethodNotAllowedForUnsupportedMethod() throws Exception {
         mockMvc.perform(put("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());
@@ -135,7 +136,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldReturnUnsupportedMediaTypeForPlainTextBody() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.TEXT_PLAIN)
                         .content("invalid"))
                 .andExpect(status().isUnsupportedMediaType());
@@ -143,7 +144,7 @@ class TransactionHttpStatusTest {
 
     @Test
     void shouldExposeOpenApiDocumentation() throws Exception {
-        mockMvc.perform(get("/v3/api-docs"))
+        mockMvc.perform(get("/v3/api-docs").with(authenticated(USER_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/transactions']").exists())
                 .andExpect(jsonPath("$.paths['/transactions/{category}']").exists())
@@ -152,14 +153,14 @@ class TransactionHttpStatusTest {
 
     @Test
     void shouldExposeSwaggerUiRoute() throws Exception {
-        mockMvc.perform(get("/swagger-ui.html"))
+        mockMvc.perform(get("/swagger-ui.html").with(authenticated(USER_ID)))
                 .andExpect(status().is3xxRedirection());
     }
 
     @Test
     void shouldListBlankDescriptionAsValidationFieldError() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -178,7 +179,7 @@ class TransactionHttpStatusTest {
         var description = "a".repeat(256);
 
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"description\":\"" + description + "\",\"category\":\"GROCERIES\",\"amount\":10}"))
                 .andExpect(status().isBadRequest())
@@ -189,7 +190,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldListMissingCategoryAsValidationFieldError() throws Exception {
         mockMvc.perform(post("/transactions")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -205,7 +206,7 @@ class TransactionHttpStatusTest {
     @Test
     void shouldListBlankChatMessageAsValidationFieldError() throws Exception {
         mockMvc.perform(post("/transactions/ai/chat")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -222,7 +223,7 @@ class TransactionHttpStatusTest {
         var message = "a".repeat(2001);
 
         mockMvc.perform(post("/transactions/ai/chat")
-                        .header("X-User-Id", USER_ID)
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"" + message + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -231,9 +232,10 @@ class TransactionHttpStatusTest {
     }
 
     @Test
-    void shouldListInvalidUserIdAsValidationFieldError() throws Exception {
+    void shouldIgnoreMalformedLegacyIdentityHeader() throws Exception {
         mockMvc.perform(post("/transactions")
                         .header("X-User-Id", "not-a-uuid")
+                        .with(authenticated(USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -242,8 +244,7 @@ class TransactionHttpStatusTest {
                                   "amount": 10
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Campos inválidos")))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("X-User-Id")));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.description").value("Compra no mercado"));
     }
 }

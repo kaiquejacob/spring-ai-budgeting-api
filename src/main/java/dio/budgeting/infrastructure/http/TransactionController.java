@@ -11,6 +11,7 @@ import dio.budgeting.infrastructure.http.response.FinancialChatResponse;
 import dio.budgeting.infrastructure.http.response.TransactionAiHttpResponse;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -89,8 +90,7 @@ public class TransactionController {
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public TransactionResponse createTransaction(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @Valid @RequestBody TransactionRequest request
     ) {
         var transaction = persistTransactionUseCase.execute(
@@ -104,12 +104,11 @@ public class TransactionController {
     @Operation(summary = "Listar transações por categoria")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Transações encontradas"),
-            @ApiResponse(responseCode = "400", description = "Categoria ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Categoria inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public List<TransactionResponse> readTransactions(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @PathVariable Category category
     ) {
         return listTransactionsByCategoryUseCase
@@ -123,12 +122,11 @@ public class TransactionController {
     @Operation(summary = "Processar transação por áudio", tags = "Assistente IA")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Solicitação processada"),
-            @ApiResponse(responseCode = "400", description = "Arquivo ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Arquivo inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public TransactionAiHttpResponse processAudio(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "sessionId", required = false) UUID sessionId
     ) {
@@ -149,13 +147,12 @@ public class TransactionController {
     @Operation(summary = "Confirmar uma proposta pendente")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Transação confirmada"),
-            @ApiResponse(responseCode = "400", description = "Token ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Token inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Proposta pendente não encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<TransactionAiHttpResponse> confirmTransaction(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @PathVariable UUID token,
             @RequestParam(value = "sessionId", required = false) UUID sessionId
     ) {
@@ -184,12 +181,11 @@ public class TransactionController {
     @Operation(summary = "Enviar mensagem ao assistente", tags = "Assistente IA")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resposta do assistente"),
-            @ApiResponse(responseCode = "400", description = "Mensagem ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Mensagem inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public FinancialChatResponse chat(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @RequestParam(value = "sessionId", required = false) UUID sessionId,
             @Valid @RequestBody FinancialChatRequest request
     ) {
@@ -205,12 +201,10 @@ public class TransactionController {
     @Operation(summary = "Sugerir categoria para uma descrição", tags = "Assistente IA")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Categoria sugerida"),
-            @ApiResponse(responseCode = "400", description = "Descrição ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Descrição inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public CategorySuggestionResponse suggestCategory(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
             @Valid @RequestBody CategorySuggestionRequest request
     ) {
         var category = suggestCategoryUseCase.execute(request.description());
@@ -222,13 +216,12 @@ public class TransactionController {
     @Operation(summary = "Extrair transação de um recibo", tags = "Assistente IA")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recibo processado"),
-            @ApiResponse(responseCode = "400", description = "Arquivo ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Arquivo inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "503", description = "Serviço de IA indisponível", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public TransactionAiHttpResponse processReceipt(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal(expression = "id") UUID userId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "sessionId", required = false) UUID sessionId
     ) {
@@ -258,12 +251,10 @@ public class TransactionController {
     @Operation(summary = "Comparar respostas dos provedores de IA", tags = "Assistente IA")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Comparação concluída"),
-            @ApiResponse(responseCode = "400", description = "Mensagem ou usuário inválido", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Mensagem inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "Erro interno", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public dio.budgeting.application.ai.AiProviderComparisonService.ComparisonResult compareProviders(
-            @Parameter(name = "X-User-Id", description = "Identificador UUID do usuário", required = true)
-            @RequestHeader("X-User-Id") UUID userId,
             @Valid @RequestBody FinancialChatRequest request
     ) {
         return aiProviderComparisonService.compare(request.message());

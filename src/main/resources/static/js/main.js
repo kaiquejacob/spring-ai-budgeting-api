@@ -1,4 +1,5 @@
 import { dom, updateControls } from "./dom.js";
+import { initializeAuth } from "./auth.js";
 import { confirmProposal, resetConversation, submitMessage } from "./chat.js";
 import { state } from "./state.js";
 import {
@@ -72,3 +73,4 @@ dom.newConversationButton.addEventListener("click", resetConversation);
 updateWorkspaceState();
 updateAttachmentPreview();
 updateControls();
+initializeAuth();
