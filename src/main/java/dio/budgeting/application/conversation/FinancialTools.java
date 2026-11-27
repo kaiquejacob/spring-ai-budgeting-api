@@ -39,7 +39,7 @@ public class FinancialTools {
                     """
     )
     public double sumByCategory(
-            @ToolParam(description = "Categoria: GROCERIES, PHARMA ou AUTO")
+            @ToolParam(description = "Categoria financeira")
             Category category,
             @ToolParam(description = """
                     Período: TODAY, YESTERDAY, THIS_WEEK, LAST_WEEK,
@@ -64,7 +64,7 @@ public class FinancialTools {
                     """
     )
     public List<TransactionOutput> listByCategory(
-            @ToolParam(description = "Categoria: GROCERIES, PHARMA ou AUTO")
+            @ToolParam(description = "Categoria financeira")
             Category category
     ) {
         return listTransactionsByCategoryUseCase.execute(userId, category);

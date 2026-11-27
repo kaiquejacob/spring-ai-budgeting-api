@@ -25,8 +25,8 @@ public class SuggestCategoryUseCase {
                         "%s"
 
                         Responda apenas com uma categoria válida:
-                        GROCERIES, PHARMA ou AUTO.
-                        """.formatted(description))
+                        %s.
+                        """.formatted(description, Category.allowedNamesInPortuguese()))
                 .call()
                 .entity(CategorySuggestion.class);
 

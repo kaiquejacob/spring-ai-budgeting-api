@@ -1,9 +1,11 @@
 package dio.budgeting.infrastructure.ai;
 
+import dio.budgeting.domain.Category;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import org.springframework.core.io.Resource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Configuration
 public class FinancialChatClientConfiguration {
@@ -30,12 +33,11 @@ public class FinancialChatClientConfiguration {
             @Value("classpath:prompts/system-message.st")
             Resource systemPrompt,
             OpenAiChatOptions groqChatOptions
-    ) throws IOException {
+    ) {
         return chatClientBuilder.clone()
                 .defaultSystem(
-                        systemPrompt.getContentAsString(
-                                StandardCharsets.UTF_8
-                        )
+                        new PromptTemplate(systemPrompt)
+                                .render(Map.of("categories", Category.allowedNamesInPortuguese()))
                 )
                 .defaultOptions(groqChatOptions)
                 .build();

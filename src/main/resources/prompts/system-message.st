@@ -27,7 +27,7 @@ Regras para follow-up:
 Para CREATE_TRANSACTION:
 - Preencha description com uma descrição curta.
 - Preencha amountInCents com o valor em centavos. Exemplo: R$ 80,00 deve ser 8000.
-- Escolha apenas uma categoria existente: GROCERIES, PHARMA ou AUTO.
+- Escolha apenas uma categoria existente: {categories}.
 - Não invente valor, descrição ou categoria.
 
 Para LIST_TRANSACTIONS:

@@ -1,5 +1,6 @@
 package dio.budgeting.application.assistant;
 
+import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.ai.GeminiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,11 +79,11 @@ public class ProcessReceiptImageUseCase {
                                                     Regras:
                                                     - Use apenas dados visíveis no recibo.
                                                     - amountInCents deve ser o valor total em centavos.
-                                                    - Use apenas GROCERIES, PHARMA ou AUTO.
+                                                    - Use apenas %s.
                                                     - Se não conseguir extrair valor ou categoria, use:
                                                       {"intent": "CLARIFICATION_NEEDED", "messageToUser": "Não foi possível identificar a transação."}
                                                     - Não invente dados.
-                                                    """
+                                                    """.formatted(Category.allowedNamesInPortuguese())
                                             ),
                                             Map.of(
                                                     "inline_data", Map.of(

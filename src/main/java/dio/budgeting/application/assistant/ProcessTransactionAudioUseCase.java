@@ -3,6 +3,7 @@ package dio.budgeting.application.assistant;
 import dio.budgeting.application.ai.AiProcessingException;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
+import dio.budgeting.domain.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
@@ -101,7 +102,7 @@ public class ProcessTransactionAudioUseCase {
         }
 
         if (response.category() == null) {
-            return clarification("Informe uma categoria válida: GROCERIES, PHARMA ou AUTO.");
+            return clarification("Informe uma categoria válida: " + Category.allowedNamesInPortuguese() + ".");
         }
 
         return response;

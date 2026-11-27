@@ -1,6 +1,6 @@
 package dio.budgeting.application.assistant;
 
-import dio.budgeting.application.assistant.ProcessTransactionAudioUseCase;
+import dio.budgeting.domain.Category;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -32,6 +32,29 @@ class ProcessTransactionAudioUseCaseTest {
 
     @Test
     void shouldReturnClarificationWhenResponseIsNull() {
+        stubModelResponse(null);
+
+        var response = useCase.interpret("gastei 80 reais no mercado");
+
+        assertEquals(
+                TransactionIntent.CLARIFICATION_NEEDED,
+                response.intent()
+        );
+    }
+
+    @Test
+    void shouldReportAllowedCategoriesWhenCreationHasNoCategory() {
+        stubModelResponse(new TransactionAiResponse(
+                TransactionIntent.CREATE_TRANSACTION, "Compra", 8000L, null, null, null, null));
+
+        var response = useCase.interpret("gastei 80 reais");
+
+        assertEquals(TransactionIntent.CLARIFICATION_NEEDED, response.intent());
+        assertEquals("Informe uma categoria válida: " + Category.allowedNamesInPortuguese() + ".",
+                response.messageToUser());
+    }
+
+    private void stubModelResponse(TransactionAiResponse response) {
         var promptSpec = Mockito.mock(
                 ChatClient.ChatClientRequestSpec.class,
                 Mockito.RETURNS_SELF
@@ -43,13 +66,6 @@ class ProcessTransactionAudioUseCaseTest {
         when(chatClient.prompt()).thenReturn(promptSpec);
         when(promptSpec.user(anyString())).thenReturn(promptSpec);
         when(promptSpec.call()).thenReturn(callSpec);
-        when(callSpec.entity(TransactionAiResponse.class)).thenReturn(null);
-
-        var response = useCase.interpret("gastei 80 reais no mercado");
-
-        assertEquals(
-                TransactionIntent.CLARIFICATION_NEEDED,
-                response.intent()
-        );
+        when(callSpec.entity(TransactionAiResponse.class)).thenReturn(response);
     }
 }
