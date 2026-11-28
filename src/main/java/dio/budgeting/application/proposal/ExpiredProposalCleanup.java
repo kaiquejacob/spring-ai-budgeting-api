@@ -1,6 +1,5 @@
 package dio.budgeting.application.proposal;
 
-import dio.budgeting.infrastructure.persistence.repository.PendingTransactionJpaRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,10 +10,10 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class ExpiredProposalCleanup {
 
-    private final PendingTransactionJpaRepository proposals;
+    private final PendingProposalStore proposals;
     private final Clock clock;
 
-    public ExpiredProposalCleanup(PendingTransactionJpaRepository proposals, Clock clock) {
+    public ExpiredProposalCleanup(PendingProposalStore proposals, Clock clock) {
         this.proposals = proposals;
         this.clock = clock;
     }

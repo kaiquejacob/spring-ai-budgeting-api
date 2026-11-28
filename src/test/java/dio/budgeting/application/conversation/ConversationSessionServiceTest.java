@@ -1,10 +1,6 @@
 package dio.budgeting.application.conversation;
 
-import dio.budgeting.application.conversation.ConversationSession;
-import dio.budgeting.application.conversation.ConversationSessionService;
-import dio.budgeting.application.conversation.SessionAccessDeniedException;
-import dio.budgeting.infrastructure.persistence.entity.ConversationSessionEntity;
-import dio.budgeting.infrastructure.persistence.repository.ConversationSessionJpaRepository;
+import dio.budgeting.application.conversation.ConversationSessionStore.StoredSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.time.Clock;
@@ -22,12 +18,12 @@ class ConversationSessionServiceTest {
 
     private static final Instant TEST_INSTANT = Instant.parse("2026-11-23T15:00:00Z");
 
-    private ConversationSessionJpaRepository repository;
+    private ConversationSessionStore repository;
     private ConversationSessionService service;
 
     @BeforeEach
     void setUp() {
-        repository = mock(ConversationSessionJpaRepository.class);
+        repository = mock(ConversationSessionStore.class);
         service = new ConversationSessionService(
                 repository,
                 Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
@@ -39,20 +35,20 @@ class ConversationSessionServiceTest {
         var userId = UUID.randomUUID();
         var sessionId = UUID.randomUUID();
 
-        var entity = new ConversationSessionEntity(
+        var stored = new StoredSession(
                 sessionId,
                 userId,
-                TEST_INSTANT.plusSeconds(900)
+                TEST_INSTANT.plusSeconds(900), null, null, null, null
         );
 
         when(repository.findById(sessionId))
-                .thenReturn(Optional.of(entity));
+                .thenReturn(Optional.of(stored));
 
         var session = service.getOrCreate(sessionId, userId);
 
         assertEquals(sessionId, session.id());
         assertEquals(userId, session.userId());
-        verify(repository).save(entity);
+        verify(repository).save(stored);
     }
 
     @Test
@@ -62,21 +58,21 @@ class ConversationSessionServiceTest {
         var sessionId = UUID.randomUUID();
         var expiration = TEST_INSTANT.plusSeconds(900);
 
-        var entity = new ConversationSessionEntity(
+        var stored = new StoredSession(
                 sessionId,
                 ownerId,
-                expiration
+                expiration, null, null, null, null
         );
 
         when(repository.findById(sessionId))
-                .thenReturn(Optional.of(entity));
+                .thenReturn(Optional.of(stored));
 
         assertThrows(
                 SessionAccessDeniedException.class,
                 () -> service.getOrCreate(sessionId, otherUserId)
         );
 
-        assertEquals(expiration, entity.getExpiresAt());
+        assertEquals(expiration, stored.expiresAt());
         verify(repository, never()).save(any());
     }
 
@@ -85,34 +81,34 @@ class ConversationSessionServiceTest {
         var userId = UUID.randomUUID();
         var oldSessionId = UUID.randomUUID();
 
-        var entity = new ConversationSessionEntity(
+        var stored = new StoredSession(
                 oldSessionId,
                 userId,
-                TEST_INSTANT.minusSeconds(60)
+                TEST_INSTANT.minusSeconds(60), null, null, null, null
         );
 
         when(repository.findById(oldSessionId))
-                .thenReturn(Optional.of(entity));
+                .thenReturn(Optional.of(stored));
 
         var session = service.getOrCreate(oldSessionId, userId);
 
         assertNotEquals(oldSessionId, session.id());
         assertEquals(userId, session.userId());
-        verify(repository).save(any(ConversationSessionEntity.class));
+        verify(repository).save(any(StoredSession.class));
     }
 
     @Test
     void shouldRejectAnotherUserEvenWhenSessionHasExpired() {
         var sessionId = UUID.randomUUID();
 
-        var entity = new ConversationSessionEntity(
+        var stored = new StoredSession(
                 sessionId,
                 UUID.randomUUID(),
-                TEST_INSTANT.minusSeconds(60)
+                TEST_INSTANT.minusSeconds(60), null, null, null, null
         );
 
         when(repository.findById(sessionId))
-                .thenReturn(Optional.of(entity));
+                .thenReturn(Optional.of(stored));
 
         assertThrows(
                 SessionAccessDeniedException.class,
@@ -129,14 +125,14 @@ class ConversationSessionServiceTest {
     void shouldRejectSavingSessionOwnedByAnotherUser() {
         var sessionId = UUID.randomUUID();
 
-        var entity = new ConversationSessionEntity(
+        var stored = new StoredSession(
                 sessionId,
                 UUID.randomUUID(),
-                TEST_INSTANT.plusSeconds(900)
+                TEST_INSTANT.plusSeconds(900), null, null, null, null
         );
 
         when(repository.findById(sessionId))
-                .thenReturn(Optional.of(entity));
+                .thenReturn(Optional.of(stored));
 
         var unauthorizedSession = new ConversationSession(
                 sessionId,

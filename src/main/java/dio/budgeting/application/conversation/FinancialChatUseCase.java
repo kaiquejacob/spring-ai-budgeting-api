@@ -1,6 +1,5 @@
 package dio.budgeting.application.conversation;
 
-import dio.budgeting.infrastructure.persistence.repository.ConversationHistoryRepository;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,7 +19,7 @@ public class FinancialChatUseCase {
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private final ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private final ChatClient financialToolChatClient;
-    private final ConversationHistoryRepository history;
+    private final ConversationHistoryWriter history;
     private final Clock clock;
 
     public FinancialChatUseCase(
@@ -29,7 +28,7 @@ public class FinancialChatUseCase {
             ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
             ListRecentTransactionsUseCase listRecentTransactionsUseCase,
             @Qualifier("financialToolChatClient") ChatClient financialToolChatClient,
-            ConversationHistoryRepository history,
+            ConversationHistoryWriter history,
             Clock clock
     ) {
         this.conversationSessionService = conversationSessionService;

@@ -2,8 +2,7 @@ package dio.budgeting.application.proposal;
 
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
-import dio.budgeting.infrastructure.persistence.entity.PendingTransactionEntity;
-import dio.budgeting.infrastructure.persistence.repository.PendingTransactionJpaRepository;
+import dio.budgeting.application.proposal.PendingProposalStore.StoredProposal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +16,10 @@ public class PendingTransactionService {
 
     private static final int EXPIRATION_SECONDS = 300;
 
-    private final PendingTransactionJpaRepository pendingTransactions;
+    private final PendingProposalStore pendingTransactions;
     private final Clock clock;
 
-    public PendingTransactionService(PendingTransactionJpaRepository pendingTransactions, Clock clock) {
+    public PendingTransactionService(PendingProposalStore pendingTransactions, Clock clock) {
         this.pendingTransactions = pendingTransactions;
         this.clock = clock;
     }
@@ -34,7 +33,7 @@ public class PendingTransactionService {
 
         var token = UUID.randomUUID();
 
-        pendingTransactions.save(new PendingTransactionEntity(
+        pendingTransactions.save(new StoredProposal(
                 token, userId, clock.instant().plusSeconds(EXPIRATION_SECONDS),
                 proposal.description(), proposal.amountInCents(), proposal.category(),
                 proposal.effectiveType(), proposal.occurredAt()));
@@ -47,17 +46,17 @@ public class PendingTransactionService {
         Objects.requireNonNull(token, "O token é obrigatório.");
         Objects.requireNonNull(userId, "O usuário é obrigatório.");
 
-        var pending = pendingTransactions.findByTokenAndUserId(token, userId)
+        var pending = pendingTransactions.findForUpdate(token, userId)
                 .orElseThrow(() -> new PendingTransactionException(
                         "Proposta não encontrada ou indisponível para este usuário."));
 
-        if (!clock.instant().isBefore(pending.getExpiresAt())) {
+        if (!clock.instant().isBefore(pending.expiresAt())) {
             throw new PendingTransactionException("Proposta expirada.");
         }
 
-        pendingTransactions.delete(pending);
+        pendingTransactions.delete(pending.token());
         return new TransactionAiResponse(TransactionIntent.CREATE_TRANSACTION,
-                pending.getDescription(), pending.getAmountInCents(), pending.getCategory(),
-                null, null, null, pending.getType(), pending.getOccurredAt());
+                pending.description(), pending.amountInCents(), pending.category(),
+                null, null, null, pending.type(), pending.occurredAt());
     }
 }

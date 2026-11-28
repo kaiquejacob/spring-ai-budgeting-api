@@ -2,7 +2,6 @@ package dio.budgeting.application.conversation;
 
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.domain.Category;
-import dio.budgeting.infrastructure.persistence.repository.ConversationHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -41,7 +40,7 @@ class FinancialChatUseCaseTest {
     private ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private FinancialChatUseCase useCase;
-    private ConversationHistoryRepository history;
+    private ConversationHistoryWriter history;
 
     @BeforeEach
     void setUp() {
@@ -53,7 +52,7 @@ class FinancialChatUseCaseTest {
         sumTransactionsByCategoryUseCase = mock(SumTransactionsByCategoryUseCase.class);
         listTransactionsByCategoryUseCase = mock(ListTransactionsByCategoryUseCase.class);
         listRecentTransactionsUseCase = mock(ListRecentTransactionsUseCase.class);
-        history = mock(ConversationHistoryRepository.class);
+        history = mock(ConversationHistoryWriter.class);
         useCase = new FinancialChatUseCase(
                 conversationSessionService,
                 sumTransactionsByCategoryUseCase,

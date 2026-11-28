@@ -28,13 +28,15 @@ class PendingTransactionServiceTest {
     @Autowired
     private PendingTransactionJpaRepository proposals;
     @Autowired
+    private PendingProposalStore proposalStore;
+    @Autowired
     private PlatformTransactionManager transactionManager;
     private PendingTransactionService service;
 
     @BeforeEach
     void setUp() {
         service = new PendingTransactionService(
-                proposals,
+                proposalStore,
                 Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
         );
     }

@@ -1,5 +1,6 @@
 package dio.budgeting.infrastructure.persistence.repository;
 
+import dio.budgeting.application.conversation.ConversationHistoryWriter;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public class ConversationHistoryRepository {
+public class ConversationHistoryRepository implements ConversationHistoryWriter {
 
     private final JdbcClient jdbc;
 
@@ -20,6 +21,7 @@ public class ConversationHistoryRepository {
         this.jdbc = jdbc;
     }
 
+    @Override
     public void append(UUID conversationId, String question, String answer, Instant exchangedAt) {
         jdbc.sql("""
                 INSERT INTO conversation_exchanges (conversation_id, question, answer, exchanged_at)
