@@ -1,10 +1,15 @@
 package dio.budgeting.application.proposal;
 
-import dio.budgeting.application.proposal.PendingTransactionException;
-import dio.budgeting.application.proposal.PendingTransactionService;
 import dio.budgeting.domain.Category;
+import dio.budgeting.domain.TransactionType;
+import dio.budgeting.infrastructure.persistence.repository.PendingTransactionJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -16,13 +21,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import dio.budgeting.application.ai.TransactionAiResponse;
 import dio.budgeting.application.ai.TransactionIntent;
 
+@SpringBootTest
+@ActiveProfiles("test")
 class PendingTransactionServiceTest {
 
+    @Autowired
+    private PendingTransactionJpaRepository proposals;
+    @Autowired
+    private PendingProposalStore proposalStore;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
     private PendingTransactionService service;
 
     @BeforeEach
     void setUp() {
         service = new PendingTransactionService(
+                proposalStore,
                 Clock.fixed(Instant.parse("2026-11-23T15:00:00Z"), ZoneId.of("America/Sao_Paulo"))
         );
     }
@@ -34,7 +48,8 @@ class PendingTransactionServiceTest {
 
         var token = service.save(userId, proposal);
 
-        var result = service.consume(token, userId);
+        assertEquals(Instant.parse("2026-11-23T15:05:00Z"), proposals.findById(token).orElseThrow().getExpiresAt());
+        var result = consume(token, userId);
 
         assertEquals(proposal, result);
     }
@@ -49,12 +64,12 @@ class PendingTransactionServiceTest {
 
         assertThrows(
                 PendingTransactionException.class,
-                () -> service.consume(token, otherUserId)
+                () -> consume(token, otherUserId)
         );
 
         assertEquals(
                 proposal,
-                service.consume(token, ownerId)
+                consume(token, ownerId)
         );
     }
 
@@ -63,11 +78,11 @@ class PendingTransactionServiceTest {
         var userId = UUID.randomUUID();
         var token = service.save(userId, createProposal());
 
-        service.consume(token, userId);
+        consume(token, userId);
 
         assertThrows(
                 PendingTransactionException.class,
-                () -> service.consume(token, userId)
+                () -> consume(token, userId)
         );
     }
 
@@ -75,11 +90,15 @@ class PendingTransactionServiceTest {
     void shouldRejectUnknownToken() {
         assertThrows(
                 PendingTransactionException.class,
-                () -> service.consume(
+                () -> consume(
                         UUID.randomUUID(),
                         UUID.randomUUID()
                 )
         );
+    }
+
+    private TransactionAiResponse consume(UUID token, UUID userId) {
+        return new TransactionTemplate(transactionManager).execute(status -> service.consume(token, userId));
     }
 
     private TransactionAiResponse createProposal() {
@@ -89,7 +108,9 @@ class PendingTransactionServiceTest {
                 2590L,
                 Category.GROCERIES,
                 null,
-                "",
-                "Não há uma proposta válida para confirmar. Gere uma nova proposta.");
+                null,
+                null,
+                TransactionType.EXPENSE,
+                null);
     }
 }

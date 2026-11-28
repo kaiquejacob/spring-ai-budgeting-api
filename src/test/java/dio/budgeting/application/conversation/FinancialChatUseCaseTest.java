@@ -15,16 +15,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import dio.budgeting.application.transaction.ListRecentTransactionsUseCase;
 import dio.budgeting.application.transaction.ListTransactionsByCategoryUseCase;
 import dio.budgeting.application.transaction.SumTransactionsByCategoryUseCase;
 
 class FinancialChatUseCaseTest {
+
+    private static final Instant ANSWERED_AT = Instant.parse("2026-11-24T12:01:00Z");
 
     private ChatClient chatClient;
     private ChatClient.ChatClientRequestSpec requestSpec;
@@ -35,6 +40,7 @@ class FinancialChatUseCaseTest {
     private ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
     private ListRecentTransactionsUseCase listRecentTransactionsUseCase;
     private FinancialChatUseCase useCase;
+    private ConversationHistoryWriter history;
 
     @BeforeEach
     void setUp() {
@@ -46,12 +52,15 @@ class FinancialChatUseCaseTest {
         sumTransactionsByCategoryUseCase = mock(SumTransactionsByCategoryUseCase.class);
         listTransactionsByCategoryUseCase = mock(ListTransactionsByCategoryUseCase.class);
         listRecentTransactionsUseCase = mock(ListRecentTransactionsUseCase.class);
+        history = mock(ConversationHistoryWriter.class);
         useCase = new FinancialChatUseCase(
                 conversationSessionService,
                 sumTransactionsByCategoryUseCase,
                 listTransactionsByCategoryUseCase,
                 listRecentTransactionsUseCase,
-                chatClient
+                chatClient,
+                history,
+                Clock.fixed(ANSWERED_AT, ZoneId.of("America/Sao_Paulo"))
         );
 
         when(chatClient.prompt()).thenReturn(requestSpec);
@@ -88,6 +97,9 @@ class FinancialChatUseCaseTest {
         assertEquals("Resposta simulada.", result.answer());
         assertEquals(sessionId, result.sessionId());
         verify(conversationSessionService).getOrCreate(null, userId);
+        var order = inOrder(callResponseSpec, history);
+        order.verify(callResponseSpec).content();
+        order.verify(history).append(sessionId, "Quanto gastei?", "Resposta simulada.", ANSWERED_AT);
 
         var conversationId = captureConversationId();
         assertEquals(userId + ":" + sessionId, conversationId.get());
@@ -127,6 +139,18 @@ class FinancialChatUseCaseTest {
         assertEquals(requestedSessionId, result.sessionId());
         verify(conversationSessionService).getOrCreate(requestedSessionId, userId);
         assertEquals(userId + ":" + requestedSessionId, captureConversationId().get());
+    }
+
+    @Test
+    void leavesHistoryUntouchedWhenTheModelFails() {
+        var userId = UUID.randomUUID();
+        var session = new ConversationSession(UUID.randomUUID(), userId, Clock.systemUTC());
+        when(conversationSessionService.getOrCreate(null, userId)).thenReturn(session);
+        when(requestSpec.call()).thenThrow(new IllegalStateException("provider unavailable"));
+
+        assertThrows(IllegalStateException.class, () -> useCase.execute(userId, null, "Quanto gastei?"));
+
+        verifyNoInteractions(history);
     }
 
     private AtomicReference<String> captureConversationId() {

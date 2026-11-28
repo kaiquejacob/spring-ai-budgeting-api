@@ -2,6 +2,7 @@ package dio.budgeting.application.proposal;
 
 import dio.budgeting.application.ai.TransactionAiResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 import dio.budgeting.application.conversation.ConversationSession;
@@ -21,6 +22,7 @@ public class RegisterPendingProposalUseCase {
         this.conversationSessionService = conversationSessionService;
     }
 
+    @Transactional
     public UUID execute(
             UUID userId,
             TransactionAiResponse aiResponse,

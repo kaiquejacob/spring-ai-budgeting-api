@@ -24,9 +24,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Clock;
@@ -48,9 +50,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:transaction-characterization;MODE=MySQL")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Sql(scripts = "/db/migration/V7__create_conversation_exchanges.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 @Import(TransactionCharacterizationTest.MutableClockConfiguration.class)
 class TransactionCharacterizationTest {
 
@@ -66,6 +69,9 @@ class TransactionCharacterizationTest {
 
     @Autowired
     private ConversationSessionJpaRepository sessionRepository;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Autowired
     private MutableClock mutableClock;
@@ -94,6 +100,7 @@ class TransactionCharacterizationTest {
     @BeforeEach
     void reset() {
         transactionRepository.deleteAll();
+        jdbc.update("DELETE FROM conversation_exchanges");
         sessionRepository.deleteAll();
         mutableClock.reset();
     }

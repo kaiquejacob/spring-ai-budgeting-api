@@ -286,6 +286,80 @@ textarea {
     border-radius: 50%;
 }
 
+.navigation-item:not(.navigation-item-active) .active-indicator {
+    visibility: hidden;
+}
+
+.recent-conversations {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.recent-conversations h2 {
+    margin: 0 10px 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.recent-content {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--sidebar);
+}
+
+.recent-items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.recent-preview {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#recent-toggle {
+    display: none;
+}
+
+.history-content {
+    width: min(100%, 720px);
+    margin-inline: auto;
+    padding: 28px 24px;
+}
+
+.history-content h1 {
+    margin: 24px 0;
+    font-size: 26px;
+    font-weight: 400;
+}
+
+.history-action {
+    width: fit-content;
+}
+
+.history-status {
+    margin: 8px 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.history-status:empty {
+    display: none;
+}
+
+.recent-content .history-status {
+    margin-inline: 10px;
+}
+
+[aria-disabled="true"].navigation-item {
+    cursor: wait;
+}
+
 .sidebar-footer {
     display: flex;
     margin-top: auto;
@@ -961,6 +1035,41 @@ textarea {
 
     .sidebar-navigation {
         display: none;
+    }
+
+    .recent-conversations {
+        grid-column: 1 / -1;
+    }
+
+    .recent-conversations h2 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        clip-path: inset(50%);
+        overflow: hidden;
+    }
+
+    #recent-toggle {
+        display: flex;
+    }
+
+    #recent-toggle[aria-expanded="true"] {
+        background: var(--surface-hover);
+        color: var(--text);
+    }
+
+    #recent-toggle[aria-expanded="false"] + .recent-content {
+        display: none;
+    }
+
+    .recent-content {
+        max-height: 30dvh;
+    }
+
+    .history-content {
+        padding: 16px;
     }
 
     .sidebar-footer {

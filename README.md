@@ -80,6 +80,8 @@ A interface é servida pelo próprio Spring Boot em `src/main/resources/static`,
 4. Faça perguntas sobre suas movimentações ou envie um recibo ou áudio. Revise a proposta antes de confirmar o registro.
 5. Para encerrar a sessão, selecione **Sair** junto ao seu e-mail.
 
+**Recentes** lista as conversas da conta por data da última troca, da mais recente à mais antiga. Selecione uma conversa para ler suas perguntas e respostas em modo somente leitura. **Carregar mais** mostra outras conversas e **Carregar mais mensagens** exibe as próximas trocas do histórico. **Voltar ao assistente** retorna à área de envio de mensagens e arquivos.
+
 Formatos aceitos: recibos JPG/PNG e áudios MP3, M4A/WAV. Arquivos são processados por provedores externos de IA; evite dados pessoais desnecessários.
 
 ---
@@ -124,21 +126,22 @@ O chat financeiro utiliza ferramentas de consulta. Ele não registra transaçõe
 
 ## `SESSÕES E MEMÓRIA`
 
-- A sessão de autenticação é gerenciada pelo Spring Security e identificada pelo cookie `JSESSIONID`.
-- Sessões de conversa são armazenadas no MySQL e vinculadas à conta.
-- O chat mantém uma janela de até 20 mensagens em memória.
-- O histórico é separado pela combinação `userId:sessionId`.
-- Sessões de conversa expiram após 15 minutos sem uso.
-- Tokens de confirmação expiram após 5 minutos.
-- Histórico e tokens são perdidos quando a API é reiniciada.
+- **Sessão de login.** O Spring Security mantém a autenticação no servidor e a identifica pelo cookie `JSESSIONID`. É preciso fazer login novamente após reiniciar a aplicação.
+- **Sessão de conversa.** O MySQL armazena a sessão e seu vínculo com a conta. A validade é renovada por 15 minutos ao usar uma sessão válida. Uma nova mensagem enviada sem `sessionId`, com um ID inexistente ou com uma sessão expirada da própria conta inicia outra sessão. O ID de outra conta é recusado.
+- **Memória do modelo.** O chat usa uma janela de até 20 mensagens persistida via JDBC no MySQL, com a chave `userId:sessionId`. Essa janela dá contexto às perguntas de continuação. As ferramentas do backend consultam os valores financeiros novamente.
+- **Histórico da conta.** Cada troca de texto concluída com uma resposta não vazia é gravada no MySQL como pergunta e resposta. O dono pode consultar as trocas mesmo depois que a sessão de conversa expira ou que a aplicação reinicia, desde que esteja autenticado. Abrir o histórico para leitura não renova a sessão nem retoma a conversa.
 
-O histórico ajuda na interpretação de perguntas de continuação, mas valores financeiros são consultados novamente pelas ferramentas do backend.
+### Propostas e confirmação
+
+As propostas são persistidas no MySQL e valem cinco minutos a partir da criação. Uma rotina remove periodicamente as propostas vencidas. O intervalo padrão é de cinco minutos e pode ser configurado com `budgeting.proposal.cleanup.interval`.
+
+O consumo do token e a gravação da transação ocorrem na mesma transação de banco. Repetir uma confirmação bem-sucedida retorna `404` e não duplica a movimentação. Se a gravação falhar, o rollback mantém o token disponível para uma nova tentativa enquanto ele estiver válido.
 
 ---
 
 ## `ENDPOINTS DA API`
 
-As rotas em `/transactions` exigem uma sessão autenticada. O backend obtém o UUID da conta a partir da sessão.
+As rotas em `/transactions` e `/conversations` exigem uma sessão autenticada. O backend obtém o UUID da conta a partir da sessão.
 
 ### Autenticação e CSRF
 
@@ -215,6 +218,19 @@ na mesma conta. Esse parâmetro é separado do cookie de autenticação.
 POST /transactions/ai/chat?sessionId=UUID_DA_SESSAO
 ```
 
+### Histórico de conversas
+
+Os dois endpoints usam o cookie de sessão `JSESSIONID`. A paginação começa em `page=0` e o tamanho padrão é `size=20`. O parâmetro `page` aceita inteiros a partir de 0 e `size` aceita inteiros de 1 a 100. Valores fora desses limites retornam `400`.
+
+Em caso de sucesso, o HTTP `200` retorna um objeto com `items` (itens da página), `page` (índice da página), `size` (tamanho solicitado) e `hasNext` (indica se há outra página).
+
+| Endpoint | Campos em cada item de `items` |
+|---|---|
+| `GET /conversations` | `conversationId` (UUID), `preview` (até 80 caracteres da primeira pergunta) e `lastExchangeAt` (data e hora da última troca). Lista as conversas da conta com histórico, da troca mais recente para a mais antiga. |
+| `GET /conversations/{id}/messages` | `question` (pergunta), `answer` (resposta) e `exchangedAt` (data e hora da troca), em ordem cronológica. Retorna `404` se o ID for inexistente ou pertencer a outra conta. |
+
+Sem uma sessão autenticada, ambos retornam `401`.
+
 ---
 
 ## `COMO EXECUTAR`
@@ -260,7 +276,7 @@ Após alterações no código, reconstrua a imagem com o mesmo comando.
 
 Para uma instalação nova ou dados de demonstração, provisione o schema vazio
 `budgeting_login_dev` no MySQL do Compose e conceda acesso ao usuário da
-aplicação. O Flyway aplica V1 a V4 na inicialização. Para usar um banco com
+aplicação. O Flyway aplica V1 a V8 na inicialização. Para usar um banco com
 dados existentes, confira primeiro o [procedimento de migração](#migração-do-schema-mysql),
 incluindo a checagem de transações órfãs antes da V4.
 
@@ -307,11 +323,13 @@ Essa tarefa exige `GROQ_API_KEY` no ambiente do processo.
 
 ### Migração do schema MySQL
 
-Em um banco vazio, o Flyway aplica da V1 à V4 na inicialização e o Hibernate
+Em um banco vazio, o Flyway aplica da V1 à V8 na inicialização e o Hibernate
 valida o schema. Em um banco legado, a V1 só pode ser marcada como baseline
 depois da conferência abaixo. O baseline automático fica desativado. A V2
 preenche `type` com `EXPENSE` e copia `created_at` para `occurred_at`, inclusive
 quando o valor histórico é nulo.
+
+A V5 cria a tabela de propostas pendentes, a V6 cria a tabela JDBC de memória do modelo, a V7 cria o histórico de trocas e a V8 indexa `pending_transactions.expires_at` para a limpeza periódica.
 
 No cadastro manual, `POST /transactions` aceita `type` (`INCOME` ou `EXPENSE`)
 e `occurredAt` (instante ISO 8601, como `2026-11-22T15:00:00Z`). Quando
@@ -320,9 +338,10 @@ usam a data de ocorrência e as transações recentes são ordenadas pela criaç
 
 Para demonstrar os cenários em MySQL 8.4 descartável, execute
 `./gradlew mysqlMigrationTest` (`.\gradlew.bat mysqlMigrationTest` no Windows).
-O Testcontainers cria bancos isolados, aplica V1 a V4 no banco vazio, demonstra
+O Testcontainers cria bancos isolados, aplica V1 a V8 no banco vazio, demonstra
 o baseline seguido da migração de um legado com conta correspondente e verifica
-que uma transação órfã impede a V4 sem perder a linha.
+que uma transação órfã impede a V4 sem perder a linha. A suíte também cobre
+reinício, isolamento, concorrência, rollback e a fronteira da limpeza de propostas.
 O comando exige Docker disponível e falha se o Docker estiver indisponível.
 
 Para preparar um banco legado, pause as escritas e confirme host, porta, schema
@@ -366,8 +385,9 @@ flyway -locations=filesystem:src/main/resources/db/migration info
 mysql "${mysql_target[@]}" "$DB_NAME" -e 'SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank;'
 ```
 
-Confira a linha `1 / BASELINE / 1` e aplique até a V3 antes de iniciar a aplicação
-com a V4. Em um banco já migrado até a V3, comece pela conferência de órfãos.
+Confira a linha `1 / BASELINE / 1` e aplique até a V3 para verificar se há
+transações órfãs antes da V4. Em um banco já migrado até a V3, comece pela
+conferência de órfãos.
 
 ```bash
 flyway -locations=filesystem:src/main/resources/db/migration -target=3 migrate
@@ -386,8 +406,10 @@ contas reais com os UUIDs correspondentes. A V4 não altera as transações e
 restringe a exclusão de contas que possuem transações.
 
 Com o pré-requisito atendido, inicie a aplicação no mesmo destino para aplicar
-a V4 e validar o schema com o Hibernate. Antes de retomar as escritas, confira
-as linhas `2 / SQL / 1`, `3 / SQL / 1` e `4 / SQL / 1`, compare as colunas
+as migrações pendentes até a V8 e validar o schema com o Hibernate. Antes de
+retomar as escritas, confira em `flyway_schema_history` as versões 2 a 8 com
+`type = SQL` e `success = 1`. Se você marcou a V1 como baseline, confira também
+a linha `1 / BASELINE / 1`. Compare as colunas
 originais com o backup e confira o preenchimento de `type` e `occurred_at`.
 
 Para dados de demonstração, use o schema vazio `budgeting_login_dev` conforme
@@ -399,9 +421,7 @@ pela interface e use-a para criar transações.
 ## `LIMITAÇÕES CONHECIDAS`
 
 - A sessão de login fica no servidor e exige novo login após reiniciar a aplicação.
-- Histórico do chat e tokens ficam em memória e são perdidos no reinício.
-- Memória e tokens locais não oferecem coordenação entre múltiplas instâncias.
-- Consumo do token e persistência não formam uma operação atômica.
+- O histórico disponível na interface é somente leitura. O contexto enviado ao modelo é limitado à janela de 20 mensagens.
 - O áudio é enviado como arquivo; não há gravação pelo microfone.
 - Respostas, disponibilidade e limites dependem dos provedores externos.
 - A IA pode interpretar informações incorretamente; revise toda proposta antes de confirmar.
@@ -445,10 +465,10 @@ O estudo Groq × Gemini está disponível em [`docs/ai-provider-comparison.md`](
 [x] Identidade autenticada nas rotas de transações
 [x] Tela de acesso e chip do usuário com logout
 [x] Chave estrangeira entre transações e contas
-[ ] Persistência do histórico do chat
-[ ] Confirmação idempotente e durável
+[x] Persistência do histórico do chat
+[x] Confirmação atômica com token persistido e proteção contra duplicidade
 [ ] Gravação de áudio pelo navegador
-[ ] Recuperação de conversas anteriores
+[x] Consulta de conversas anteriores em modo somente leitura
 [ ] Dashboard com gráficos
 [ ] Testes automatizados da interface
 ```
