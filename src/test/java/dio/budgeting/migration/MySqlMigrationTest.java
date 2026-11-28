@@ -7,6 +7,7 @@ import dio.budgeting.application.conversation.ConversationSessionService;
 import dio.budgeting.application.conversation.FinancialChatUseCase;
 import dio.budgeting.application.conversation.SessionAccessDeniedException;
 import dio.budgeting.application.proposal.ConfirmPendingTransactionUseCase;
+import dio.budgeting.application.proposal.ExpiredProposalCleanup;
 import dio.budgeting.application.proposal.PendingTransactionException;
 import dio.budgeting.application.proposal.RegisterPendingProposalUseCase;
 import dio.budgeting.domain.Category;
@@ -43,9 +44,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -70,6 +73,7 @@ class MySqlMigrationTest {
     private static final String V5 = "V5__create_pending_transactions.sql";
     private static final String V6 = "V6__create_spring_ai_chat_memory.sql";
     private static final String V7 = "V7__create_conversation_exchanges.sql";
+    private static final String V8 = "V8__index_pending_transactions_expires_at.sql";
     private static final Instant CHAT_TIME = Instant.parse("2026-11-27T15:00:00.123456Z");
     private static final String USER_FK = "fk_transaction_entity_user";
     private static final String LEGACY_USER_ID = "00000000000000000000000000000010";
@@ -197,6 +201,53 @@ class MySqlMigrationTest {
                         new AssistantMessage("resposta: " + messages.getLast()))));
             });
             return ChatClient.builder(model);
+        }
+    }
+
+    @Test
+    void removesOnlyProposalsAtOrBeforeTheFixedCutoff() {
+        var jdbc = new JdbcTemplate(dataSource(mysql));
+        try (var context = startApplication(mysql, SimulatedChat.class)) {
+            jdbc.update(INSERT_USER, LEGACY_USER_ID, "proposal-owner@example.invalid");
+            jdbc.update(INSERT_TRANSACTION, "00000000000000000000000000000001", LEGACY_USER_ID);
+            var chat = context.getBean(FinancialChatUseCase.class);
+            var sessions = context.getBean(ConversationSessionService.class);
+            var register = context.getBean(RegisterPendingProposalUseCase.class);
+            var tokens = new ArrayList<UUID>();
+            var sessionIds = new ArrayList<UUID>();
+            for (long offset : List.of(-1L, 0L, 1L)) {
+                var sessionId = chat.execute(OWNER, null, "fixture " + offset).sessionId();
+                sessionIds.add(sessionId);
+                var token = register.execute(OWNER, proposal(), sessions.getOrCreate(sessionId, OWNER));
+                tokens.add(token);
+                assertThat(jdbc.update("UPDATE pending_transactions SET expires_at = ? WHERE token = UNHEX(?)",
+                        Timestamp.from(CHAT_TIME.plus(offset, ChronoUnit.MICROS)),
+                        token.toString().replace("-", ""))).isEqualTo(1);
+            }
+            var preservedTables = List.of("transaction_entity", "conversation_sessions",
+                    "conversation_exchanges", "SPRING_AI_CHAT_MEMORY");
+            var before = preservedTables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
+
+            var cleanup = context.getBean(ExpiredProposalCleanup.class);
+            assertThat(cleanup.deleteExpired()).isEqualTo(2);
+            assertThat(cleanup.deleteExpired()).isZero();
+            assertThat(jdbc.queryForList("SELECT LOWER(HEX(token)) FROM pending_transactions", String.class))
+                    .containsExactly(tokens.get(2).toString().replace("-", ""));
+            var after = preservedTables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
+            assertThat(after).usingRecursiveComparison().ignoringCollectionOrder().isEqualTo(before);
+
+            var confirm = context.getBean(ConfirmPendingTransactionUseCase.class);
+            for (int index = 0; index < 2; index++) {
+                var token = tokens.get(index);
+                assertThat(sessions.getOrCreate(sessionIds.get(index), OWNER).pendingConfirmationToken())
+                        .isEqualTo(token);
+                assertThatThrownBy(() -> confirm.execute(token, OWNER))
+                        .isInstanceOf(PendingTransactionException.class);
+            }
+            assertThat(confirm.execute(tokens.get(2), OWNER).type()).isEqualTo(TransactionType.INCOME);
+            assertThat(transactionCount(jdbc)).isEqualTo(2);
+            System.out.println("Cleanup: cutoff -1 us removed, cutoff removed, cutoff +1 us confirmed. "
+                    + "Deleted 2 then 0; transactions, sessions and history preserved by cleanup.");
         }
     }
 
@@ -339,7 +390,13 @@ class MySqlMigrationTest {
                     List.of("4", "SQL", V4, true),
                     List.of("5", "SQL", V5, true),
                     List.of("6", "SQL", V6, true),
-                    List.of("7", "SQL", V7, true));
+                    List.of("7", "SQL", V7, true),
+                    List.of("8", "SQL", V8, true));
+            assertThat(jdbc.queryForList("""
+                    SELECT column_name FROM information_schema.statistics
+                    WHERE table_schema = DATABASE() AND table_name = 'pending_transactions'
+                        AND index_name = 'idx_pending_transactions_expires_at'
+                    """, String.class)).containsExactly("expires_at");
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SHOW TABLES LIKE 'pending_transactions'")).hasSize(1);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class)).isZero();
@@ -420,7 +477,8 @@ class MySqlMigrationTest {
                     migration -> assertThat(migration).containsExactly("4", "SQL", V4, true),
                     migration -> assertThat(migration).containsExactly("5", "SQL", V5, true),
                     migration -> assertThat(migration).containsExactly("6", "SQL", V6, true),
-                    migration -> assertThat(migration).containsExactly("7", "SQL", V7, true));
+                    migration -> assertThat(migration).containsExactly("7", "SQL", V7, true),
+                    migration -> assertThat(migration).containsExactly("8", "SQL", V8, true));
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM conversation_exchanges", Long.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_AI_CHAT_MEMORY", Long.class)).isZero();
             assertThat(jdbc.queryForList("SELECT HEX(id) FROM users", String.class)).containsExactly(LEGACY_USER_ID);
@@ -508,6 +566,7 @@ class MySqlMigrationTest {
                         "--spring.flyway.url=" + container.getJdbcUrl(),
                         "--spring.flyway.user=" + container.getUsername(),
                         "--spring.flyway.password=" + container.getPassword(),
-                        "--spring.docker.compose.enabled=false");
+                        "--spring.docker.compose.enabled=false",
+                        "--budgeting.proposal.cleanup.enabled=false");
     }
 }
